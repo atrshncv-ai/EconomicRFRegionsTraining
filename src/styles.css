@@ -1,0 +1,68 @@
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f4f6f8; color: #222; line-height: 1.45;
+}
+header {
+  background: #1f3a5f; color: #fff; padding: 12px 16px;
+}
+header h1 { margin: 0; font-size: 20px; }
+header p { margin: 4px 0 0; font-size: 13px; opacity: .85; }
+main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 40px; }
+.map-wrap { position: relative; background: #dfe9f2; border-radius: 8px; overflow: hidden; }
+#map { display: block; width: 100%; height: auto; touch-action: none; }
+#map path { stroke: #fff; stroke-width: .7; cursor: pointer; outline: none; }
+#map path:focus-visible { stroke: #000; stroke-width: 2; }
+#map path.city {
+  paint-order: stroke; stroke: rgba(0,0,0,0); stroke-width: 9;
+}
+#map path.schematic { stroke-dasharray: 4 2; stroke: #333; stroke-width: 1.2; }
+#map path.dim { opacity: .18; }
+#map path.good { stroke: #1a7f37; stroke-width: 2.5; }
+#map path.bad { stroke: #d1242f; stroke-width: 2.5; }
+#map path.active-q { stroke: #111; stroke-width: 2; }
+.map-controls { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+.map-controls button {
+  width: 36px; height: 36px; font-size: 18px; border: 1px solid #bbb;
+  background: #fff; border-radius: 6px; cursor: pointer;
+}
+#tip {
+  position: fixed; z-index: 10; background: #111; color: #fff; font-size: 13px;
+  padding: 4px 8px; border-radius: 4px; pointer-events: none; max-width: 260px;
+}
+#legend {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0;
+}
+.legend-item, .district-btn {
+  border: 1px solid #bbb; background: #fff; border-radius: 6px;
+  padding: 6px 10px; font-size: 14px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.legend-item:hover, .district-btn:hover { border-color: #333; }
+.district-btn.tried { border-color: #d1242f; background: #fde8e9; }
+.chip { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.3); }
+.num {
+  font-size: 11px; background: #eee; border-radius: 8px; padding: 0 6px;
+}
+.panel { background: #fff; border-radius: 8px; padding: 14px 16px; margin-top: 12px; }
+.panel h2 { margin-top: 0; }
+.btn {
+  border: 1px solid #1f3a5f; background: #1f3a5f; color: #fff; border-radius: 6px;
+  padding: 10px 16px; font-size: 15px; cursor: pointer; margin: 4px 6px 4px 0;
+}
+.btn.secondary { background: #fff; color: #1f3a5f; }
+.btn-row { margin-top: 10px; }
+#district-btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+#q-title { font-size: 18px; font-weight: 600; }
+#q-msg { min-height: 24px; font-weight: 600; margin-top: 8px; }
+#q-progress { color: #555; font-size: 13px; }
+#res-districts { columns: 2; padding-left: 20px; }
+#res-districts li { margin-bottom: 4px; list-style: none; margin-left: -20px; }
+.note { font-size: 13px; color: #555; }
+footer { font-size: 12px; color: #777; margin-top: 16px; }
+label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 0; }
+@media (max-width: 640px) {
+  #res-districts { columns: 1; }
+  header h1 { font-size: 17px; }
+}

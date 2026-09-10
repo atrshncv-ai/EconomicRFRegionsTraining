@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Геотренажёр: экономические районы России</title>
+<style>
+/*__STYLES__*/
+</style>
+</head>
+<body>
+<header>
+  <h1>Геотренажёр: экономические районы России</h1>
+  <p>12 районов · 89 субъектов · только карта, без подглядываний</p>
+</header>
+<main>
+  <div class="map-wrap">
+    <div class="map-controls" role="group" aria-label="Масштаб карты">
+      <button id="zoom-in" type="button" aria-label="Приблизить">+</button>
+      <button id="zoom-out" type="button" aria-label="Отдалить">−</button>
+      <button id="zoom-reset" type="button" aria-label="Сбросить масштаб">⤾</button>
+    </div>
+<!--__MAP__-->
+  </div>
+  <div id="tip" hidden></div>
+
+  <section id="screen-home" class="panel">
+    <h2>Что такое экономические районы?</h2>
+    <p>Экономические районы группируют регионы страны по территориальному
+    соседству, учитывая их экономические связи, общность производства
+    и разделение труда, природные условия. Деление на районы используется
+    при планировании экономического развития страны.</p>
+    <div class="btn-row">
+      <button class="btn" id="btn-study" type="button">Изучение карты</button>
+      <button class="btn" id="btn-mode-sd" type="button">Субъект → район</button>
+      <button class="btn" id="btn-mode-ds" type="button">Район → субъекты</button>
+      <button class="btn secondary" id="btn-errors" type="button" hidden>Повторить ошибки</button>
+    </div>
+    <div>
+      <label class="strict"><input type="checkbox" id="strict"> Строгий режим («Профессор»): без подсказок</label>
+    </div>
+    <div class="btn-row">
+      <button class="btn secondary" id="btn-reset" type="button">Сбросить прогресс</button>
+    </div>
+    <p class="note">Прогресс хранится в этом браузере. 4 новых региона (ДНР, ЛНР,
+    Запорожская и Херсонская области) показаны схематичными контурами.</p>
+  </section>
+
+  <div id="legend" aria-label="Легенда районов"></div>
+
+  <section id="screen-study" class="panel" hidden>
+    <h2>Изучение</h2>
+    <p>Карта раскрашена по районам. Наведи на регион, чтобы увидеть название,
+    наведи на район в легенде, чтобы подсветить его.</p>
+    <div class="btn-row"><button class="btn secondary" data-home type="button">На главную</button></div>
+  </section>
+
+  <section id="screen-game" class="panel" hidden>
+    <div id="q-progress"></div>
+    <div id="q-title"></div>
+    <p id="q-hint" class="note"></p>
+    <div id="district-btns"></div>
+    <div id="q-msg" role="status"></div>
+    <div class="btn-row">
+      <button class="btn secondary" id="btn-hint" type="button">Подсказать район</button>
+      <button class="btn secondary" id="btn-done" type="button" hidden>Готово</button>
+      <button class="btn secondary" id="btn-giveup" type="button">Не знаю</button>
+      <button class="btn secondary" id="btn-finish" type="button">Мне хватит</button>
+    </div>
+  </section>
+
+  <section id="screen-result" class="panel" hidden>
+    <h2>Результат</h2>
+    <p id="res-score"></p>
+    <h3>По районам (за всё время)</h3>
+    <ul id="res-districts"></ul>
+    <div class="btn-row">
+      <button class="btn" id="btn-retry-errors" type="button" hidden>Повторить ошибки</button>
+      <button class="btn secondary" id="btn-again" type="button">На главную</button>
+    </div>
+  </section>
+
+  <footer>
+    Карта: alexTitakoff/svg-map-Russia (MIT, исходно Elton Kamami).
+    Состав районов — по списку автора тренажёра и ОКЭР.
+  </footer>
+</main>
+<script>
+/*__DATA__*/
+</script>
+<script>
+/*__QUIZ__*/
+</script>
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>
