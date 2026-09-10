@@ -90,6 +90,20 @@ function fire(el, type, ev) {
   (el.listeners[type] || []).forEach((fn) => fn(Object.assign({ target: el, preventDefault: () => {} }, ev)));
 }
 
+// Точное опознание субъекта из заголовка вопроса.
+// includes() здесь нельзя: «Ненецкий автономный округ» — подстрока
+// «Ямало-Ненецкого», что давало ~10% флаков неверными ответами.
+function subjFromTitle() {
+  const t = els['q-title'].textContent;
+  let name;
+  const m = t.match(/«(.+)»/);
+  if (m) name = m[1];
+  else name = t.slice(t.lastIndexOf(':') + 1).replace(/\?\s*$/, '').trim();
+  const s = require('../src/data.js').SUBJECTS.find((x) => x.name === name);
+  assert.ok(s, 'субъект вопроса опознан: ' + t);
+  return s;
+}
+
 // Старт: виден только home
 assert.equal(els['screen-home'].hidden, false);
 assert.equal(els['screen-game'].hidden, true);
@@ -102,7 +116,7 @@ assert.ok(els['q-title'].textContent.length > 5);
 assert.equal(els['district-btns'].children.length, 12);
 assert.equal(els.legend.children.length, 12, 'легенда: 12 районов');
 // Находим кнопку правильного района и кликаем через делегированный слушатель
-const want = SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+const want = subjFromTitle();
 assert.ok(want, 'вопрос про известный субъект');
 const btn = els['district-btns'].children.find((b) => b.dataset.district === want.district);
 assert.ok(btn, 'кнопка правильного района существует');
@@ -135,7 +149,7 @@ console.log('smoke.test.js: OK (район→субъекты: клик по к�
 fire(els['btn-reset'], 'click');
 function sdQuestion() {
   fire(els['btn-mode-sd'], 'click');
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   assert.ok(w, 'вопрос про известный субъект');
   return w;
 }
@@ -151,7 +165,7 @@ els.strict.checked = false;
 
 // Неверный ответ: «Мимо», метка tried, с 3-й — показ правильного
 sdQuestion();
-const w1 = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+const w1 = subjFromTitle();
 const wb = wrongBtnFor(w1);
 wb.closest = () => wb;
 fire(els['district-btns'], 'click', { target: wb });
@@ -233,7 +247,7 @@ const soundCalls = [];
 window.GEO_SOUND.play = (spec) => { soundCalls.push(spec); return true; };
 fire(els['btn-mode-sd'], 'click');
 {
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
   okb.closest = () => okb;
   fire(els['district-btns'], 'click', { target: okb });
@@ -241,7 +255,7 @@ fire(els['btn-mode-sd'], 'click');
 }
 fire(els['btn-mode-sd'], 'click');
 {
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   const wb2 = els['district-btns'].children.find((b) => b.dataset.district !== w.district);
   wb2.closest = () => wb2;
   fire(els['district-btns'], 'click', { target: wb2 });
@@ -257,7 +271,7 @@ console.log('smoke.test.js: OK (звук на верном/неверном че
   els.sound.checked = false;
   fire(els.sound, 'change');
   fire(els['btn-mode-sd'], 'click');
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
   okb.closest = () => okb;
   fire(els['district-btns'], 'click', { target: okb });
@@ -277,7 +291,7 @@ console.log('smoke.test.js: OK (тумблер глушит и запомина�
 fire(els['btn-mode-sd'], 'click');
 assert.match(els['q-timer'].textContent, /Время/, 'секундомер виден в игре');
 {
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
   okb.closest = () => okb;
   fire(els['district-btns'], 'click', { target: okb });
@@ -293,7 +307,7 @@ console.log('smoke.test.js: OK (секундомер и бонус за скор
 // Числа 20/5 и поля записи — дословно из спецификации (Решения: история).
 function fastWin() {
   fire(els['btn-mode-sd'], 'click');
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
   okb.closest = () => okb;
   fire(els['district-btns'], 'click', { target: okb });
@@ -335,7 +349,7 @@ console.log('smoke.test.js: OK (история: запись, кап 20, пос�
     global.document.hidden = false;
     fireDoc('visibilitychange');
     now += 2000;
-    const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+    const w = subjFromTitle();
     const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
     okb.closest = () => okb;
     fire(els['district-btns'], 'click', { target: okb });
@@ -395,7 +409,7 @@ function texts(el) {
   el.children.forEach((c) => { out.push(texts(c)); });
   return out.join(' ');
 }
-assert.equal(els['print-list'].children.length, 12, 'печатный состав: 12 районов');
+assert.equal(els['print-list'].children.filter((c) => c.className === 'print-district').length, 20, 'печатный состав: 12 районов + 8 округов');
 assert.ok(texts(els['print-list']).includes('Центральный'), 'печатный состав: названия районов');
 assert.ok(texts(els['print-list']).includes('Москва'), 'печатный состав: названия субъектов');
 {
@@ -411,7 +425,7 @@ console.log('smoke.test.js: OK (печать: кнопка, 12 районов с
 // Из спеки: называют субъект — кликаем граничащих; вопрос только по регионам
 // с ≥1 соседом (без соседей — Калининград и Сахалин — не выпадают).
 function nbSubject() {
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   assert.ok(w, 'вопрос про известный субъект');
   return w;
 }
@@ -482,7 +496,7 @@ fire(els['btn-mode-sd'], 'click');
 assert.match(els['q-title'].textContent, /федеральный округ/, 'вопрос ФО: ' + els['q-title'].textContent);
 assert.equal(els['district-btns'].children.length, 8, '8 кнопок округов');
 {
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   assert.ok(w, 'вопрос про известный субъект');
   const foWant = GEO.FO_OF[w.svgId];
   assert.ok(foWant, 'субъект есть в FO_OF');
@@ -529,7 +543,7 @@ fire(els['btn-reset'], 'click');
 fire(els['ds-eco'], 'click');
 function ecoWrongOnce() {
   fire(els['btn-mode-sd'], 'click');
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   assert.ok(w, 'эко-вопрос про известный субъект');
   const wb = els['district-btns'].children.find((b) => b.dataset.district !== w.district);
   wb.closest = () => wb;
@@ -541,7 +555,7 @@ function ecoWrongOnce() {
 function foWrongOnce() {
   fire(els['btn-mode-sd'], 'click');
   assert.match(els['q-title'].textContent, /федеральный округ/);
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   assert.ok(w, 'фо-вопрос про известный субъект');
   const foWant = GEO.FO_OF[w.svgId];
   const wb = els['district-btns'].children.find((b) => b.dataset.district !== foWant);
@@ -619,7 +633,7 @@ fire(els['ds-fo'], 'click');
 fire(els['btn-mode-nb'], 'click');
 assert.match(els['q-title'].textContent, /сосед/i, 'вопрос про соседей в ФО');
 {
-  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const w = subjFromTitle();
   assert.ok(w && (GEO.NEIGHBORS[w.svgId] || []).length >= 1, 'у субъекта есть соседи');
   const foId = GEO.FO_OF[w.svgId];
   GEO.NEIGHBORS[w.svgId].forEach((id) => {
@@ -635,4 +649,53 @@ assert.match(els['q-title'].textContent, /сосед/i, 'вопрос про с�
 fire(els['ds-eco'], 'click');
 
 console.log('smoke.test.js: OK (ФО: соседи группируют по ФО)');
+
+// --- ФО-03, smoke: печать обоих наборов (истории 1, 3; R01/R10) ---
+// Из спеки: «Печать — оба состава (сначала активный набор, затем второй)».
+{
+  const t = texts(els['print-list']);
+  assert.ok(t.includes('Центральный'), 'печать: экон. районы на месте');
+  assert.ok(t.includes('Центральный федеральный округ'), 'печать: федеральные округа на месте');
+  const secs = els['print-list'].children.filter((c) => c.className === 'print-district');
+  assert.equal(secs.length, 20, 'печать: 12 районов + 8 округов');
+}
+
+console.log('smoke.test.js: OK (ФО-03: печать обоих наборов)');
+
+// --- ФО-03, smoke: активный набор в печати первый (история 1) ---
+// Из спеки дословно: «сначала активный набор, затем второй».
+{
+  const heads = () => els['print-list'].children
+    .filter((c) => c.className === 'print-district')
+    .map((sec) => sec.children[0].textContent);
+  fire(els['ds-eco'], 'click');
+  assert.equal(heads()[0], 'Центральный', 'eco активен: первый раздел — экон. район');
+  assert.ok(heads()[12].includes('Центральный федеральный округ'), 'eco активен: второй набор — округа');
+  fire(els['ds-fo'], 'click');
+  assert.ok(heads()[0].includes('Центральный федеральный округ'), 'fo активен: первый раздел — округ');
+  assert.equal(heads()[8], 'Центральный', 'fo активен: второй набор — районы');
+  fire(els['ds-eco'], 'click');
+}
+
+console.log('smoke.test.js: OK (ФО-03: активный набор первый)');
+
+// --- ФО-03, smoke: центры и разбивка по типам в печати ФО (история 3, R10) ---
+// Из брифа дословно: ЦФО — центр Москва, «18 (17 областей и 1 город)»;
+// ДВФО — Владивосток (с декабря 2018 года); то же в печати, что и в легенде.
+{
+  const heads = () => els['print-list'].children
+    .filter((c) => c.className === 'print-district')
+    .map((sec) => sec.children[0].textContent);
+  fire(els['ds-fo'], 'click');
+  const cfo = heads().find((t) => t.includes('ЦФО'));
+  assert.ok(cfo.includes('Москва'), 'печать ФО: ЦФО с центром: ' + cfo);
+  assert.ok(cfo.includes('18') && cfo.includes('17 областей') && cfo.includes('1 город'),
+    'печать ФО: ЦФО со счётом и разбивкой: ' + cfo);
+  const dv = heads().find((t) => t.includes('ДВФО'));
+  assert.ok(dv.includes('Владивосток') && dv.includes('2018'), 'печать ФО: ДВФО с центром и 2018: ' + dv);
+  assert.ok(dv.includes('11'), 'печать ФО: ДВФО со счётом 11: ' + dv);
+  fire(els['ds-eco'], 'click');
+}
+
+console.log('smoke.test.js: OK (ФО-03: центры и разбивка в печати)');
 

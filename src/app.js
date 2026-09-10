@@ -76,20 +76,21 @@
     if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
     return many;
   }
-  function breakdownText(groupId) {
-    var members = memberSubjects(groupId);
+  function breakdownFor(ds, groupId) {
+    var arr = ds === 'fo' ? (byFo[groupId] || []) : (byDistrict[groupId] || []);
     var c = { obl: 0, krai: 0, rep: 0, okr: 0, city: 0 };
-    members.forEach(function (s) { c[typeOf(s.name)]++; });
+    arr.forEach(function (s) { c[typeOf(s.name)]++; });
     var parts = [];
     if (c.obl) parts.push(c.obl + ' ' + plural(c.obl, 'область', 'области', 'областей'));
     if (c.krai) parts.push(c.krai + ' ' + plural(c.krai, 'край', 'края', 'краёв'));
     if (c.rep) parts.push(c.rep + ' ' + plural(c.rep, 'республика', 'республики', 'республик'));
     if (c.okr) parts.push(c.okr + ' ' + plural(c.okr, 'округ', 'округа', 'округов'));
     if (c.city) parts.push(c.city + ' ' + plural(c.city, 'город', 'города', 'городов'));
-    if (!parts.length) return members.length + '';
-    if (parts.length === 1) return members.length + ': ' + parts[0];
-    return members.length + ': ' + parts.slice(0, -1).join(', ') + ' и ' + parts[parts.length - 1];
+    if (!parts.length) return arr.length + '';
+    if (parts.length === 1) return arr.length + ': ' + parts[0];
+    return arr.length + ': ' + parts.slice(0, -1).join(', ') + ' и ' + parts[parts.length - 1];
   }
+  function breakdownText(groupId) { return breakdownFor(dataset, groupId); }
   function centerText(g) {
     if (!g || !g.center) return '';
     return g.centerNote ? g.center + ' (' + g.centerNote + ')' : g.center;
@@ -354,20 +355,24 @@
     });
   }
 
-  // Печать состава: активный набор (второй набор — таск 03).
-  function buildPrint() {
-    var pl = document.getElementById('print-list');
-    pl.innerHTML = '';
-    curGroups().forEach(function (d) {
+  // Печать составов: оба набора, сначала активный (Р01/Р10 ФО-03).
+  function groupsOfDs(ds) { return ds === 'fo' ? FO_GROUPS : DISTRICTS; }
+  function headerForDs(ds, g) {
+    if (ds === 'fo') return g.name + ' (' + g.abbr + ') — центр: ' + centerText(g) + ' — ' + breakdownFor(ds, g.id);
+    return g.name;
+  }
+  function appendPrintSet(pl, ds) {
+    var h2 = document.createElement('h2');
+    h2.textContent = ds === 'fo' ? 'Состав федеральных округов' : 'Состав экономических районов';
+    pl.appendChild(h2);
+    groupsOfDs(ds).forEach(function (d) {
       var sec = document.createElement('div');
       sec.className = 'print-district';
       var h = document.createElement('h3');
-      h.textContent = dataset === 'fo'
-        ? d.name + ' (' + d.abbr + ') — центр: ' + centerText(d) + ' — ' + breakdownText(d.id)
-        : d.name;
+      h.textContent = headerForDs(ds, d);
       sec.appendChild(h);
       var ul = document.createElement('ul');
-      memberSubjects(d.id).forEach(function (s) {
+      (ds === 'fo' ? (byFo[d.id] || []) : (byDistrict[d.id] || [])).forEach(function (s) {
         var li = document.createElement('li');
         li.textContent = s.name;
         ul.appendChild(li);
@@ -375,6 +380,12 @@
       sec.appendChild(ul);
       pl.appendChild(sec);
     });
+  }
+  function buildPrint() {
+    var pl = document.getElementById('print-list');
+    pl.innerHTML = '';
+    appendPrintSet(pl, dataset);
+    appendPrintSet(pl, dataset === 'fo' ? 'eco' : 'fo');
   }
   document.getElementById('btn-print').addEventListener('click', function () {
     sfx('click');
