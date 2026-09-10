@@ -6,6 +6,7 @@
   'use strict';
   var DATA = window.GEO_DATA;
   var QUIZ = window.GEO_QUIZ;
+  var SOUND = window.GEO_SOUND || null;
   var DISTRICTS = DATA.DISTRICTS;
   var SUBJECTS = DATA.SUBJECTS;
   var bySvg = {}, byDistrict = {};
@@ -23,12 +24,17 @@
   }
 
   var STORE_KEY = 'geo-trainer-v1';
-  var store = { ok: {}, asked: {}, errors: [] };
+  var store = { ok: {}, asked: {}, errors: [], history: [], sound: true };
   var storageOK = true;
   function loadStore() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (raw) store = JSON.parse(raw);
+      if (store.sound === undefined) store.sound = true;
+      if (!store.history) store.history = [];
+      if (!store.ok) store.ok = {};
+      if (!store.asked) store.asked = {};
+      if (!store.errors) store.errors = [];
     } catch (e) { storageOK = false; }
   }
   function saveStore() {
@@ -42,6 +48,19 @@
     saveStore();
   }
   function pushError(err) { store.errors.push(err); saveStore(); }
+
+  // История игр (R01.3): последние 20 (дата, счёт, всего из 2×N).
+  function pushHistory(game) {
+    store.history.push(game);
+    if (store.history.length > 20) store.history = store.history.slice(-20);
+    saveStore();
+  }
+
+  // Озвучка событий (R02.1): синтез из sound.js, тумблер — store.sound.
+  function sfx(event) {
+    if (!SOUND || store.sound === false) return;
+    SOUND.play(SOUND.soundFor(event));
+  }
 
   var svg = document.getElementById('map');
   var tip = document.getElementById('tip');
@@ -129,6 +148,7 @@
   // Экраны
   var screens = ['home', 'study', 'game', 'result'];
   function show(name) {
+    if (name !== 'game') stopTimer();
     screens.forEach(function (s) {
       document.getElementById('screen-' + s).hidden = (s !== name);
     });
@@ -170,9 +190,39 @@
   });
 
   var G = null; // состояние игры
+  var qTimer = document.getElementById('q-timer');
+  // Секундомер (R04.1): время вопроса и раунда; скрытая вкладка — пауза.
+  function visibleSeconds(t0, hiddenMs) {
+    var hide = hiddenMs + (G.hiddenSince ? Date.now() - G.hiddenSince : 0);
+    return (Date.now() - t0 - hide) / 1000;
+  }
+  function qSeconds() { return visibleSeconds(G.t0, G.hiddenMs); }
+  function roundSeconds() { return visibleSeconds(G.roundT0, G.roundHiddenMs); }
+  function tickTimer() {
+    if (!G) return;
+    qTimer.textContent = 'Время вопроса: ' + Math.max(0, qSeconds()).toFixed(0) +
+      ' с · Раунд: ' + Math.max(0, roundSeconds()).toFixed(0) + ' с';
+  }
+  function stopTimer() {
+    if (G && G.timerId) { clearInterval(G.timerId); G.timerId = 0; }
+  }
+  function onVis() {
+    if (!G) return;
+    if (document.hidden) { if (!G.hiddenSince) G.hiddenSince = Date.now(); }
+    else if (G.hiddenSince) {
+      var d = Date.now() - G.hiddenSince;
+      G.hiddenMs += d; G.roundHiddenMs += d; G.hiddenSince = 0;
+      tickTimer();
+    }
+  }
+  if (document.addEventListener) document.addEventListener('visibilitychange', onVis);
   function newGame(mode, questions, strict) {
+    stopTimer();
+    var now = Date.now();
     G = { mode: mode, questions: questions, i: 0, score: 0, attempts: 0,
-      picked: [], hinted: false, strict: !!strict, wrong: [] };
+      picked: [], hinted: false, strict: !!strict, wrong: [],
+      t0: now, roundT0: now, hiddenMs: 0, roundHiddenMs: 0, hiddenSince: 0, timerId: 0 };
+    G.timerId = setInterval(tickTimer, 500);
     show('game');
     renderQuestion();
   }
@@ -213,6 +263,8 @@
   function renderQuestion() {
     var q = curQ();
     G.attempts = 0; G.picked = []; G.hinted = false;
+    G.t0 = Date.now(); G.hiddenMs = 0; G.hiddenSince = document.hidden ? Date.now() : 0;
+    tickTimer();
     qMsg.textContent = '';
     paintNeutral();
     btnDone.hidden = true;
@@ -240,10 +292,13 @@
     var r = QUIZ.checkSubjectAnswer(q, b.dataset.district);
     G.attempts++;
     if (r.ok) {
-      G.score += G.hinted ? 0 : (G.attempts === 1 ? 2 : 1);
+      var bonus = QUIZ.bonusFor({ attempt: G.attempts, seconds: qSeconds(), hinted: G.hinted });
+      G.score += (G.hinted ? 0 : (G.attempts === 1 ? 2 : 1)) + bonus;
       paths[q.subject.svgId].classList.add('good');
       recordResult(q.subject.district, true);
-      qMsg.textContent = 'Верно! ' + q.subject.name + ' — ' + districtName(q.subject.district) + '.';
+      sfx('correct');
+      qMsg.textContent = 'Верно! ' + q.subject.name + ' — ' + districtName(q.subject.district) + '.' +
+        (bonus ? ' Бонус за скорость +1!' : '');
       setTimeout(next, 900);
     } else if (G.attempts >= 3) {
       if (!G.strict) {
@@ -255,12 +310,14 @@
       paths[q.subject.svgId].classList.add('bad');
       recordResult(q.subject.district, false);
       pushError({ mode: 'subject-district', svgId: q.subject.svgId });
+      sfx('wrong');
       setTimeout(next, 1600);
     } else {
       b.classList.add('tried');
       setTimeout(function () { b.classList.remove('tried'); }, 600);
       qMsg.textContent = 'Мимо. Осталось попыток: ' + (3 - G.attempts) + '.';
       recordResult(q.subject.district, false);
+      sfx('wrong');
     }
   });
 
@@ -275,6 +332,7 @@
       paths[id].classList.add('bad');
       setTimeout(function () { paths[id].classList.remove('bad'); }, 600);
       qMsg.textContent = bySvg[id].name + ' — не входит. Ищем дальше.';
+      sfx('wrong');
     } else {
       G.picked.push(id);
       paths[id].classList.add('good');
@@ -308,6 +366,7 @@
     });
     recordResult(q.district.id, ok);
     if (!ok) pushError({ mode: 'district-subjects', district: q.district.id });
+    sfx(ok ? 'correct' : 'wrong');
     qMsg.textContent = ok
       ? 'Верно! Все ' + r.total + ' найдены.'
       : 'Найдено ' + r.found + ' из ' + r.total + '. Пропущены: ' +
@@ -344,8 +403,21 @@
   }
   function finish() {
     var total = G.questions.length;
+    var secs = Math.max(0, roundSeconds());
+    stopTimer();
     var pct = total ? Math.round(100 * G.score / (2 * total)) : 0;
     document.getElementById('res-score').textContent = G.score + ' из ' + (2 * total) + ' (' + pct + '%)';
+    document.getElementById('res-time').textContent = 'Время раунда: ' + secs.toFixed(0) +
+      ' с · среднее на вопрос: ' + (total ? (secs / total).toFixed(0) : 0) + ' с';
+    pushHistory({ date: new Date().toISOString(), score: G.score, total: 2 * total });
+    var rh = document.getElementById('res-history');
+    rh.innerHTML = '';
+    store.history.slice(-5).reverse().forEach(function (g) {
+      var li = document.createElement('li');
+      var when = g.date ? g.date.slice(0, 10) : '';
+      li.textContent = (when ? when + ' — ' : '') + g.score + ' из ' + g.total;
+      rh.appendChild(li);
+    });
     var per = DISTRICTS.map(function (d) {
       var a = store.asked[d.id] || 0, o = store.ok[d.id] || 0;
       return { d: d, pct: a ? Math.round(100 * o / a) : null };
@@ -361,6 +433,7 @@
     document.getElementById('btn-retry-errors').hidden = !store.errors.length;
     G = null;
     paintStudy();
+    sfx('finish');
     show('result');
   }
 
@@ -374,7 +447,8 @@
     show('home'); startErrors();
   });
   document.getElementById('btn-reset').addEventListener('click', function () {
-    store = { ok: {}, asked: {}, errors: [] };
+    var sound = store.sound;
+    store = { ok: {}, asked: {}, errors: [], history: [], sound: sound };
     saveStore();
     refreshHome();
   });
@@ -393,5 +467,12 @@
   loadStore();
   paintStudy();
   refreshHome();
+  var soundBox = document.getElementById('sound');
+  soundBox.checked = store.sound !== false;
+  soundBox.addEventListener('change', function () {
+    store.sound = soundBox.checked;
+    saveStore();
+    if (soundBox.checked) sfx('click');
+  });
   show('home');
 })();

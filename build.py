@@ -159,6 +159,7 @@ def main():
     html = html.replace('<!--__MAP__-->', lambda_safe(svg))
     html = html.replace('/*__DATA__*/', lambda_safe(read(os.path.join(SRC, 'data.js'))))
     html = html.replace('/*__QUIZ__*/', lambda_safe(read(os.path.join(SRC, 'quiz.js'))))
+    html = html.replace('/*__SOUND__*/', lambda_safe(read(os.path.join(SRC, 'sound.js'))))
     html = html.replace('/*__APP__*/', lambda_safe(read(os.path.join(SRC, 'app.js'))))
     out = os.path.join(ROOT, 'index.html')
     with open(out, 'w', encoding='utf-8') as f:

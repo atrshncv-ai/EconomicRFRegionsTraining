@@ -41,10 +41,11 @@ function makeEl(id) {
 const els = {};
 ['home', 'study', 'game', 'result'].forEach((s) => { els['screen-' + s] = makeEl('screen-' + s); });
 ['tip', 'legend', 'district-btns', 'q-title', 'q-hint', 'q-msg', 'btn-hint', 'btn-giveup',
- 'btn-finish', 'btn-done', 'q-progress', 'zoom-in', 'zoom-out', 'zoom-reset', 'res-score',
- 'res-districts', 'btn-retry-errors', 'btn-study', 'btn-mode-sd', 'btn-mode-ds',
- 'btn-errors', 'btn-reset', 'btn-again', 'strict'].forEach((id) => { els[id] = makeEl(id); });
+  'btn-finish', 'btn-done', 'q-progress', 'q-timer', 'sound', 'zoom-in', 'zoom-out', 'zoom-reset', 'res-score',
+  'res-time', 'res-districts', 'res-history', 'btn-retry-errors', 'btn-study', 'btn-mode-sd', 'btn-mode-ds',
+  'btn-errors', 'btn-reset', 'btn-again', 'strict'].forEach((id) => { els[id] = makeEl(id); });
 els.strict.checked = false;
+els.sound.checked = true;
 
 const svgPaths = SUBJECTS.map((s) => {
   const p = makeEl(s.svgId);
@@ -62,7 +63,8 @@ global.localStorage = {
   getItem: (k) => (k in store ? store[k] : null),
   setItem: (k, v) => { store[k] = String(v); },
 };
-global.window = { scrollTo: () => {}, GEO_DATA: require('../src/data.js'), GEO_QUIZ: require('../src/quiz.js') };
+global.window = { scrollTo: () => {}, GEO_DATA: require('../src/data.js'), GEO_QUIZ: require('../src/quiz.js'),
+  GEO_SOUND: require('../src/sound.js') };
 global.document = {
   getElementById: (id) => {
     assert.ok(els[id], 'document.getElementById(' + id + ') — нет такого элемента');
@@ -72,6 +74,13 @@ global.document = {
   querySelectorAll: () => [],
 };
 global.self = global.window;
+
+const docListeners = {};
+global.document.addEventListener = (t, fn) => ((docListeners[t] = docListeners[t] || []).push(fn));
+global.document.hidden = false;
+function fireDoc(type) {
+  (docListeners[type] || []).forEach((fn) => fn({}));
+}
 
 require('../src/app.js');
 
@@ -175,7 +184,7 @@ fire(els['btn-finish'], 'click');
 fire(els['btn-again'], 'click');
 fire(els['btn-reset'], 'click');
 assert.equal(els['btn-errors'].hidden, true, 'после сброса ошибок нет');
-assert.equal(store['geo-trainer-v1'], '{"ok":{},"asked":{},"errors":[]}', 'хранилище сброшено');
+assert.equal(store['geo-trainer-v1'], '{"ok":{},"asked":{},"errors":[],"history":[],"sound":true}', 'хранилище сброшено');
 
 // Район→субъекты: Enter с клавиатуры, промах, «Готово» с пропусками.
 // Калининград из 1 субъекта для этого сценария не годится — перевыбираем.
@@ -198,4 +207,143 @@ fire(els['btn-finish'], 'click');
 assert.equal(els['screen-result'].hidden, false, 'финал после второго режима');
 
 console.log('smoke.test.js: OK (ветки: мимо/подсказка/сдача/финиш/ошибки/сброс/клавиатура)');
+
+// --- Таск 03, шов soundFor (спека: звук — синтез, без файлов) ---
+// Свойства из спеки без кода: 4 события дают 4 различимые спеки,
+// correct выше wrong по тону, все длительности > 0.
+const SOUND = require('../src/sound.js');
+{
+  const specs = ['correct', 'wrong', 'finish', 'click'].map((e) => SOUND.soundFor(e));
+  specs.forEach((s) => {
+    assert.equal(typeof s.freq, 'number', 'частота — число');
+    assert.equal(typeof s.dur, 'number', 'длительность — число');
+    assert.ok(s.dur > 0, 'длительность положительна');
+  });
+  assert.equal(new Set(specs.map((s) => s.freq + '/' + s.dur)).size, 4, '4 события различимы');
+  assert.ok(SOUND.soundFor('correct').freq > SOUND.soundFor('wrong').freq, 'верно выше неверного по тону');
+}
+assert.equal(typeof SOUND.play, 'function', 'play(spec) выставлен');
+
+console.log('smoke.test.js: OK (шов soundFor: 4 события различимы)');
+
+// --- Таск 03, smoke: звук вызван на верном/неверном (стаб play) ---
+const soundCalls = [];
+window.GEO_SOUND.play = (spec) => { soundCalls.push(spec); return true; };
+fire(els['btn-mode-sd'], 'click');
+{
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
+  okb.closest = () => okb;
+  fire(els['district-btns'], 'click', { target: okb });
+  assert.deepEqual(soundCalls[soundCalls.length - 1], { freq: 660, dur: 0.12 }, 'верный ответ озвучен');
+}
+fire(els['btn-mode-sd'], 'click');
+{
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const wb2 = els['district-btns'].children.find((b) => b.dataset.district !== w.district);
+  wb2.closest = () => wb2;
+  fire(els['district-btns'], 'click', { target: wb2 });
+  assert.deepEqual(soundCalls[soundCalls.length - 1], { freq: 180, dur: 0.25 }, 'промах озвучен');
+}
+fire(els['btn-finish'], 'click');
+
+console.log('smoke.test.js: OK (звук на верном/неверном через стаб play)');
+
+// --- Таск 03, smoke: тумблер глушит звук, выбор запоминается ---
+{
+  const n0 = soundCalls.length;
+  els.sound.checked = false;
+  fire(els.sound, 'change');
+  fire(els['btn-mode-sd'], 'click');
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
+  okb.closest = () => okb;
+  fire(els['district-btns'], 'click', { target: okb });
+  assert.equal(soundCalls.length, n0, 'выключенный звук молчит на верном ответе');
+  assert.equal(JSON.parse(store['geo-trainer-v1']).sound, false, 'выбор «без звука» запомнен');
+  els.sound.checked = true;
+  fire(els.sound, 'change');
+  assert.equal(JSON.parse(store['geo-trainer-v1']).sound, true, 'включение запомнено');
+}
+fire(els['btn-finish'], 'click');
+
+console.log('smoke.test.js: OK (тумблер глушит и запоминается)');
+
+// --- Таск 03, smoke: секундомер виден, быстрый верный ответ даёт +1 ---
+// Арифметика вручную из спеки: +2 с первой попытки и +1 бонус (<8 с,
+// без подсказки) = 3; итог одного вопроса из раунда на 10 — «3 из 20».
+fire(els['btn-mode-sd'], 'click');
+assert.match(els['q-timer'].textContent, /Время/, 'секундомер виден в игре');
+{
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
+  okb.closest = () => okb;
+  fire(els['district-btns'], 'click', { target: okb });
+  fire(els['btn-finish'], 'click');
+  assert.ok(els['res-score'].textContent.indexOf('3 из 20') === 0,
+    'быстрый верный: 2+1 бонус, итог: ' + els['res-score'].textContent);
+  assert.match(els['res-time'].textContent, /Время раунда/, 'время (итог) на экране результата');
+}
+
+console.log('smoke.test.js: OK (секундомер и бонус за скорость)');
+
+// --- Таск 03, smoke: история пишется (дата/счёт/всего), кап — 20, на результате — 5 ---
+// Числа 20/5 и поля записи — дословно из спецификации (Решения: история).
+function fastWin() {
+  fire(els['btn-mode-sd'], 'click');
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
+  okb.closest = () => okb;
+  fire(els['district-btns'], 'click', { target: okb });
+  fire(els['btn-finish'], 'click');
+}
+fire(els['btn-again'], 'click');
+fire(els['btn-reset'], 'click');
+fastWin();
+{
+  const st = JSON.parse(store['geo-trainer-v1']);
+  assert.equal(st.history.length, 1, 'игра записана в историю');
+  assert.equal(st.history[0].score, 3, 'счёт с бонусом за скорость');
+  assert.equal(st.history[0].total, 20, 'всего = 2 × 10 вопросов');
+  assert.ok(Date.parse(st.history[0].date) > 0, 'дата игры валидна');
+  assert.equal(els['res-history'].children.length, 1, 'последняя игра видна в результате');
+}
+for (let k = 0; k < 20; k++) fastWin();
+{
+  const st = JSON.parse(store['geo-trainer-v1']);
+  assert.equal(st.history.length, 20, 'хранятся последние 20 игр');
+  assert.equal(els['res-history'].children.length, 5, 'на результате — последние 5');
+}
+
+console.log('smoke.test.js: OK (история: запись, кап 20, последние 5)');
+
+// --- Таск 03, smoke: скрытая вкладка — пауза, бонус за скорость не сгорает ---
+// Вручную: 3 с вопрос + 60 с скрыта + 2 с = 5 с видимых (<8 с) → «3 из 20»;
+// без паузы было бы 65 с и бонуса бы не было («2 из 20»).
+{
+  const realNow = Date.now;
+  let now = 1000000;
+  Date.now = () => now;
+  try {
+    fire(els['btn-mode-sd'], 'click');
+    now += 3000;
+    global.document.hidden = true;
+    fireDoc('visibilitychange');
+    now += 60000;
+    global.document.hidden = false;
+    fireDoc('visibilitychange');
+    now += 2000;
+    const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+    const okb = els['district-btns'].children.find((b) => b.dataset.district === w.district);
+    okb.closest = () => okb;
+    fire(els['district-btns'], 'click', { target: okb });
+    fire(els['btn-finish'], 'click');
+    assert.ok(els['res-score'].textContent.indexOf('3 из 20') === 0,
+      'скрытое время исключено, бонус дан: ' + els['res-score'].textContent);
+  } finally {
+    Date.now = realNow;
+  }
+}
+
+console.log('smoke.test.js: OK (пауза при скрытой вкладке)');
 

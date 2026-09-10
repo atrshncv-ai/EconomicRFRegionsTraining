@@ -39,6 +39,9 @@
     <div>
       <label class="strict"><input type="checkbox" id="strict"> Строгий режим («Профессор»): без подсказок</label>
     </div>
+    <div>
+      <label class="strict"><input type="checkbox" id="sound" checked> Звук</label>
+    </div>
     <div class="btn-row">
       <button class="btn secondary" id="btn-reset" type="button">Сбросить прогресс</button>
     </div>
@@ -57,6 +60,7 @@
 
   <section id="screen-game" class="panel" hidden>
     <div id="q-progress"></div>
+    <div id="q-timer" role="timer"></div>
     <div id="q-title"></div>
     <p id="q-hint" class="note"></p>
     <div id="district-btns"></div>
@@ -72,6 +76,9 @@
   <section id="screen-result" class="panel" hidden>
     <h2>Результат</h2>
     <p id="res-score"></p>
+    <p id="res-time" class="note"></p>
+    <h3>Последние игры</h3>
+    <ul id="res-history"></ul>
     <h3>По районам (за всё время)</h3>
     <ul id="res-districts"></ul>
     <div class="btn-row">
@@ -90,6 +97,9 @@
 </script>
 <script>
 /*__QUIZ__*/
+</script>
+<script>
+/*__SOUND__*/
 </script>
 <script>
 /*__APP__*/
