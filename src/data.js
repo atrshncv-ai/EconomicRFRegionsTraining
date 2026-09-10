@@ -224,5 +224,49 @@
     'RU-ZAB': ['RU-AMU', 'RU-BU', 'RU-IRK', 'RU-SA'],
     'RU-ZAP': ['RU-DNR', 'RU-KHE']
   };
-  return { DISTRICTS: DISTRICTS, SUBJECTS: SUBJECTS, NEIGHBORS: NEIGHBORS };
+  /* FO: федеральные округа — второй разрез тех же 89 субъектов (R02–R11).
+   * Состав заморожен спецификацией; ДНР/ЛНР/Запорожская/Херсонская — в ЮФО.
+   * Палитра своя (8), не пересекается с 12 цветами экон. районов.
+   */
+  var FO_GROUPS = [
+    { id: 'cfo',  name: 'Центральный федеральный округ',       abbr: 'ЦФО',  center: 'Москва',           color: '#1f77b4' },
+    { id: 'szfo', name: 'Северо-Западный федеральный округ',   abbr: 'СЗФО', center: 'Санкт-Петербург',  color: '#ff7f0e' },
+    { id: 'yufo', name: 'Южный федеральный округ',             abbr: 'ЮФО',  center: 'Ростов-на-Дону',   color: '#2ca02c' },
+    { id: 'skfo', name: 'Северо-Кавказский федеральный округ', abbr: 'СКФО', center: 'Пятигорск',         color: '#d62728' },
+    { id: 'pfo',  name: 'Приволжский федеральный округ',       abbr: 'ПФО',  center: 'Нижний Новгород',  color: '#9467bd' },
+    { id: 'urfo', name: 'Уральский федеральный округ',         abbr: 'УрФО', center: 'Екатеринбург',     color: '#8c564b' },
+    { id: 'sfo',  name: 'Сибирский федеральный округ',         abbr: 'СФО',  center: 'Новосибирск',      color: '#e377c2' },
+    { id: 'dvfo', name: 'Дальневосточный федеральный округ',   abbr: 'ДВФО', center: 'Владивосток',      centerNote: 'с декабря 2018 года', color: '#7f7f7f' }
+  ];
+  // [svgId, foId]
+  var F = [
+    ['RU-BEL', 'cfo'], ['RU-BRY', 'cfo'], ['RU-VLA', 'cfo'], ['RU-VOR', 'cfo'],
+    ['RU-IVA', 'cfo'], ['RU-KLU', 'cfo'], ['RU-KOS', 'cfo'], ['RU-KRS', 'cfo'],
+    ['RU-LIP', 'cfo'], ['RU-MOS', 'cfo'], ['RU-ORL', 'cfo'], ['RU-RYA', 'cfo'],
+    ['RU-SMO', 'cfo'], ['RU-TAM', 'cfo'], ['RU-TVE', 'cfo'], ['RU-TUL', 'cfo'],
+    ['RU-YAR', 'cfo'], ['RU-MOW', 'cfo'],
+    ['RU-KR', 'szfo'], ['RU-KO', 'szfo'], ['RU-ARK', 'szfo'], ['RU-VLG', 'szfo'],
+    ['RU-KGD', 'szfo'], ['RU-LEN', 'szfo'], ['RU-MUR', 'szfo'], ['RU-NGR', 'szfo'],
+    ['RU-PSK', 'szfo'], ['RU-SPE', 'szfo'], ['RU-NEN', 'szfo'],
+    ['RU-AD', 'yufo'], ['RU-KL', 'yufo'], ['RU-CR', 'yufo'], ['RU-KDA', 'yufo'],
+    ['RU-AST', 'yufo'], ['RU-VGG', 'yufo'], ['RU-ROS', 'yufo'], ['RU-SEV', 'yufo'],
+    ['RU-DNR', 'yufo'], ['RU-LNR', 'yufo'], ['RU-ZAP', 'yufo'], ['RU-KHE', 'yufo'],
+    ['RU-DA', 'skfo'], ['RU-IN', 'skfo'], ['RU-KB', 'skfo'], ['RU-KC', 'skfo'],
+    ['RU-SE', 'skfo'], ['RU-CE', 'skfo'], ['RU-STA', 'skfo'],
+    ['RU-BA', 'pfo'], ['RU-ME', 'pfo'], ['RU-MO', 'pfo'], ['RU-TA', 'pfo'],
+    ['RU-UD', 'pfo'], ['RU-CU', 'pfo'], ['RU-PER', 'pfo'], ['RU-KIR', 'pfo'],
+    ['RU-NIZ', 'pfo'], ['RU-PNZ', 'pfo'], ['RU-SAM', 'pfo'], ['RU-SAR', 'pfo'],
+    ['RU-ULY', 'pfo'], ['RU-ORE', 'pfo'],
+    ['RU-KGN', 'urfo'], ['RU-SVE', 'urfo'], ['RU-TYU', 'urfo'], ['RU-CHE', 'urfo'],
+    ['RU-KHM', 'urfo'], ['RU-YAN', 'urfo'],
+    ['RU-AL', 'sfo'], ['RU-TY', 'sfo'], ['RU-KK', 'sfo'], ['RU-ALT', 'sfo'],
+    ['RU-KYA', 'sfo'], ['RU-IRK', 'sfo'], ['RU-KEM', 'sfo'], ['RU-NVS', 'sfo'],
+    ['RU-OMS', 'sfo'], ['RU-TOM', 'sfo'],
+    ['RU-BU', 'dvfo'], ['RU-SA', 'dvfo'], ['RU-ZAB', 'dvfo'], ['RU-KAM', 'dvfo'],
+    ['RU-PRI', 'dvfo'], ['RU-KHA', 'dvfo'], ['RU-AMU', 'dvfo'], ['RU-MAG', 'dvfo'],
+    ['RU-SAK', 'dvfo'], ['RU-YEV', 'dvfo'], ['RU-CHU', 'dvfo']
+  ];
+  var FO_OF = {};
+  F.forEach(function (r) { FO_OF[r[0]] = r[1]; });
+  return { DISTRICTS: DISTRICTS, SUBJECTS: SUBJECTS, NEIGHBORS: NEIGHBORS, FO_GROUPS: FO_GROUPS, FO_OF: FO_OF };
 }));
