@@ -8,8 +8,7 @@ import os
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, 'src')
-VENDOR = '/var/folders/18/nv2y391s5gvcp3mfk76xcny80000gn/T/opencode/vendor/map.svg'
-VENDOR_FALLBACK = os.path.join(ROOT, 'vendor', 'map.svg')
+VENDOR = os.path.join(ROOT, 'vendor', 'map.svg')
 
 
 def read(p):
@@ -104,7 +103,7 @@ def main():
     names = data_names()
     colors = dict(re.findall(r"\{ id: '([a-z]+)',\s+name: '[^']+',\s+color:\s+'([^']+)' \}",
                              read(os.path.join(SRC, 'data.js'))))
-    svg_src = VENDOR if os.path.exists(VENDOR) else VENDOR_FALLBACK
+    svg_src = VENDOR
     svg = read(svg_src)
     m = re.search(r'<svg.*?</svg>', svg, re.S)
     svg = m.group(0)

@@ -10,7 +10,11 @@
 - Не трогать: `.autopilot/`, `AGENTS.md`, `ru.svg` (исходник пользователя).
 - Недоставаемая зависимость → вернуть `BLOCKED`, ничего не ставить из сети.
 
-## Швы для тестов
+## Из прохода T0 — что построено
 
-- `quiz.answer(question, answer) -> {ok, correct}` — чистая проверка, без DOM.
-- Валидация `data`: 89 уникальных svgId, каждый ровно в 1 районе, покрытие 12 районов.
+- `index.html` (сборка `python3 build.py` из `src/` + `vendor/map.svg`, 204 КБ, всё инлайн, внешних запросов нет)
+- `src/data.js` — `GEO_DATA {DISTRICTS(12), SUBJECTS(89)}`, UMD (браузер + node)
+- `src/quiz.js` — `GEO_QUIZ {subjectQuestion, districtQuestion, checkSubjectAnswer, checkDistrictAnswer, buildRound, makeRng}`, чистые функции без DOM
+- `src/app.js` — экраны, легенда, зум (кнопки/колесо/щипок), localStorage `geo-trainer-v1`, клавиатура (Enter/Space)
+- Швы: `GEO_QUIZ.*` и валидация `GEO_DATA` — тесты только здесь
+- Тесты: `node --test tests/*.test.js` → 3 файла зелёных
