@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { DISTRICTS, SUBJECTS } = require('../src/data.js');
+const { DISTRICTS, SUBJECTS, NEIGHBORS } = require('../src/data.js');
 
 const EXPECTED = {
   central: 13, black: 7, northwest: 4, northern: 6, kaliningrad: 1,
@@ -32,5 +32,29 @@ assert.ok(html.includes('alexTitakoff'), 'атрибуция карты в по�
 assert.ok(html.includes('Новые регионы'), 'врезка новых регионов на месте');
 assert.ok(html.includes('<title>Москва</title>'), 'русские title в контурах');
 assert.ok(html.includes('Что такое экономические районы'), 'экран теории на месте');
+
+// R01.5: NEIGHBORS симметрично (a–b значит b–a)
+assert.ok(NEIGHBORS && typeof NEIGHBORS === 'object', 'NEIGHBORS экспортируется');
+for (const [a, bs] of Object.entries(NEIGHBORS))
+  for (const b of bs)
+    assert.ok(NEIGHBORS[b] && NEIGHBORS[b].includes(a), 'асимметрия: ' + a + '-' + b);
+
+// R01.5: только известные svgId из SUBJECTS
+{
+  const known = new Set(SUBJECTS.map((s) => s.svgId));
+  for (const [a, bs] of Object.entries(NEIGHBORS)) {
+    assert.ok(known.has(a), 'неизвестный id в NEIGHBORS: ' + a);
+    for (const b of bs) assert.ok(known.has(b), 'неизвестный сосед ' + b + ' у ' + a);
+    assert.ok(!bs.includes(a), 'петля: ' + a);
+  }
+}
+
+// R01.5: у каждого региона из матрицы ≥1 сосед
+for (const [a, bs] of Object.entries(NEIGHBORS))
+  assert.ok(Array.isArray(bs) && bs.length >= 1, 'без соседей в матрице: ' + a);
+
+// R01.5: Калининград и Сахалин — без соседей, в режиме не участвуют
+for (const iso of ['RU-KGD', 'RU-SAK'])
+  assert.ok(!(iso in NEIGHBORS) || NEIGHBORS[iso].length === 0, iso + ' должен быть без соседей');
 
 console.log('data.test.js: OK (89 субъектов, 12 районов, index.html покрыт)');
