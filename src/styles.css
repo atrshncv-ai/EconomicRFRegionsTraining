@@ -12,7 +12,7 @@ header p { margin: 4px 0 0; font-size: 13px; opacity: .85; }
 main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 40px; }
 .map-wrap { position: relative; background: #dfe9f2; border-radius: 8px; overflow: hidden; }
 #map { display: block; width: 100%; height: auto; touch-action: none; }
-#map path { stroke: #fff; stroke-width: .7; cursor: pointer; outline: none; }
+#map path { stroke: #fff; stroke-width: .7; cursor: pointer; outline: none; fill: #cfd8e3; }
 #map path:focus-visible { stroke: #000; stroke-width: 2; }
 #map path.city {
   paint-order: stroke; stroke: rgba(0,0,0,0); stroke-width: 9;

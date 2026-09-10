@@ -19,7 +19,7 @@ header p { margin: 4px 0 0; font-size: 13px; opacity: .85; }
 main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 40px; }
 .map-wrap { position: relative; background: #dfe9f2; border-radius: 8px; overflow: hidden; }
 #map { display: block; width: 100%; height: auto; touch-action: none; }
-#map path { stroke: #fff; stroke-width: .7; cursor: pointer; outline: none; }
+#map path { stroke: #fff; stroke-width: .7; cursor: pointer; outline: none; fill: #cfd8e3; }
 #map path:focus-visible { stroke: #000; stroke-width: 2; }
 #map path.city {
   paint-order: stroke; stroke: rgba(0,0,0,0); stroke-width: 9;
@@ -511,6 +511,7 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
 
   var svg = document.getElementById('map');
   var tip = document.getElementById('tip');
+  var NEUTRAL = '#cfd8e3';
   var paths = {};
   Array.prototype.forEach.call(svg.querySelectorAll('path[id]'), function (p) {
     if (bySvg[p.id]) {
@@ -529,7 +530,7 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   }
   function paintNeutral() {
     Object.keys(paths).forEach(function (id) {
-      paths[id].style.fill = '';
+      paths[id].style.fill = NEUTRAL;
       paths[id].classList.remove('dim', 'good', 'bad', 'hinted', 'active-q');
     });
   }
@@ -611,7 +612,9 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
     b.addEventListener('mouseenter', function () {
       if (!document.getElementById('screen-study').hidden) dimAllExcept(byDistrict[d.id].map(function (s) { return s.svgId; }));
     });
-    b.addEventListener('mouseleave', function () { paintStudy(); });
+    b.addEventListener('mouseleave', function () {
+      if (!document.getElementById('screen-study').hidden) paintStudy();
+    });
     b.addEventListener('click', function () {
       if (!document.getElementById('screen-study').hidden) {
         dimAllExcept(byDistrict[d.id].map(function (s) { return s.svgId; }));

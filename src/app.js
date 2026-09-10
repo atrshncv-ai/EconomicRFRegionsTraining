@@ -45,6 +45,7 @@
 
   var svg = document.getElementById('map');
   var tip = document.getElementById('tip');
+  var NEUTRAL = '#cfd8e3';
   var paths = {};
   Array.prototype.forEach.call(svg.querySelectorAll('path[id]'), function (p) {
     if (bySvg[p.id]) {
@@ -63,7 +64,7 @@
   }
   function paintNeutral() {
     Object.keys(paths).forEach(function (id) {
-      paths[id].style.fill = '';
+      paths[id].style.fill = NEUTRAL;
       paths[id].classList.remove('dim', 'good', 'bad', 'hinted', 'active-q');
     });
   }
@@ -145,7 +146,9 @@
     b.addEventListener('mouseenter', function () {
       if (!document.getElementById('screen-study').hidden) dimAllExcept(byDistrict[d.id].map(function (s) { return s.svgId; }));
     });
-    b.addEventListener('mouseleave', function () { paintStudy(); });
+    b.addEventListener('mouseleave', function () {
+      if (!document.getElementById('screen-study').hidden) paintStudy();
+    });
     b.addEventListener('click', function () {
       if (!document.getElementById('screen-study').hidden) {
         dimAllExcept(byDistrict[d.id].map(function (s) { return s.svgId; }));

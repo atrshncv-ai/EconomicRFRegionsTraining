@@ -100,7 +100,11 @@ assert.ok(els['q-msg'].textContent.includes('Верно'), 'верный отв�
 
 console.log('smoke.test.js: OK (экраны, вопрос, верный ответ, 12 кнопок)');
 
-// Режим «Район → субъекты»: кликаем верный контур, жмём «Готово»
+// В игре карта нейтральная: ни вопрос, ни мышь по легенде не красят районы
+const NEUTRAL = '#cfd8e3';
+assert.ok(svgPaths.every((p) => p.style.fill === NEUTRAL), 'карта в игре нейтральная');
+fire(els.legend.children[0], 'mouseleave');
+assert.ok(svgPaths.every((p) => p.style.fill === NEUTRAL), 'легенда в игре карту не перекрашивает');
 fire(els['btn-mode-ds'], 'click');
 assert.ok(els['q-title'].textContent.includes('Покажи на карте'));
 const GEO = require('../src/data.js');
