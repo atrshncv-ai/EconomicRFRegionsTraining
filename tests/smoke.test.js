@@ -43,7 +43,8 @@ const els = {};
 ['tip', 'legend', 'legend-list', 'district-btns', 'q-title', 'q-hint', 'q-msg', 'btn-hint', 'btn-giveup',
   'btn-finish', 'btn-done', 'q-progress', 'q-timer', 'sound', 'zoom-in', 'zoom-out', 'zoom-reset', 'res-score',
   'res-time', 'res-districts', 'res-history', 'btn-retry-errors', 'btn-study', 'btn-mode-sd', 'btn-mode-ds',
-  'btn-errors', 'btn-reset', 'btn-again', 'strict', 'theme', 'btn-print', 'print-list', 'btn-mode-nb'].forEach((id) => { els[id] = makeEl(id); });
+  'btn-errors', 'btn-reset', 'btn-again', 'strict', 'theme', 'btn-print', 'print-list', 'btn-mode-nb',
+  'ds-eco', 'ds-fo'].forEach((id) => { els[id] = makeEl(id); });
 els.strict.checked = false;
 els.theme.checked = false;
 els.sound.checked = true;
@@ -185,7 +186,7 @@ fire(els['btn-finish'], 'click');
 fire(els['btn-again'], 'click');
 fire(els['btn-reset'], 'click');
 assert.equal(els['btn-errors'].hidden, true, 'после сброса ошибок нет');
-assert.equal(store['geo-trainer-v1'], '{"ok":{},"asked":{},"errors":[],"history":[],"sound":true}', 'хранилище сброшено');
+assert.equal(store['geo-trainer-v1'], '{"dataset":"eco","ok":{"eco":{},"fo":{}},"asked":{"eco":{},"fo":{}},"errors":[],"history":[],"sound":true}', 'хранилище сброшено (неймспейсы eco/fo)');
 
 // Район→субъекты: Enter с клавиатуры, промах, «Готово» с пропусками.
 // Калининград из 1 субъекта для этого сценария не годится — перевыбираем.
@@ -457,4 +458,181 @@ fire(els['btn-finish'], 'click');
 assert.equal(els['screen-result'].hidden, false, 'финал после соседей');
 
 console.log('smoke.test.js: OK (соседи: клик+Готово, разбор, без соседей не выпадают)');
+
+// --- ФО-02, smoke: переключатель набора (история 1, шов setDataset) ---
+// Из спеки: «Экономические / Федеральные» на главной; 12 районов vs 8 округов.
+assert.ok(html.includes('ds-fo'), 'переключатель ФО в сборке');
+assert.equal(typeof window.GEO_APP.setDataset, 'function', 'шов setDataset выставлен');
+assert.equal(els.legend.children.length, 12, 'старт: 12 экон. районов в легенде');
+fire(els['ds-fo'], 'click');
+assert.equal(window.GEO_APP.getDataset(), 'fo', 'активный набор — fo');
+assert.equal(els.legend.children.length, 8, 'ФО: 8 округов в легенде');
+assert.equal(els['district-btns'].children.length, 8, 'ФО: 8 кнопок округов в игре');
+fire(els['ds-eco'], 'click');
+assert.equal(window.GEO_APP.getDataset(), 'eco', 'возврат — eco');
+assert.equal(els.legend.children.length, 12, 'снова 12 районов');
+
+console.log('smoke.test.js: OK (ФО: переключатель 12/8)');
+
+// --- ФО-02, smoke: вопрос по ФО (история 1) ---
+// Из спеки: «Субъект→округ (8 кнопок)»; вопрос называет федеральный округ,
+// ответ — по составу ФО (оракул — FO_OF из данных, не код приложения).
+fire(els['ds-fo'], 'click');
+fire(els['btn-mode-sd'], 'click');
+assert.match(els['q-title'].textContent, /федеральный округ/, 'вопрос ФО: ' + els['q-title'].textContent);
+assert.equal(els['district-btns'].children.length, 8, '8 кнопок округов');
+{
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  assert.ok(w, 'вопрос про известный субъект');
+  const foWant = GEO.FO_OF[w.svgId];
+  assert.ok(foWant, 'субъект есть в FO_OF');
+  const okb = els['district-btns'].children.find((b) => b.dataset.district === foWant);
+  assert.ok(okb, 'кнопка верного округа существует: ' + foWant);
+  okb.closest = () => okb;
+  fire(els['district-btns'], 'click', { target: okb });
+  assert.ok(els['q-msg'].textContent.includes('Верно'), 'верный округ засчитан: ' + els['q-msg'].textContent);
+}
+fire(els['btn-finish'], 'click');
+fire(els['ds-eco'], 'click');
+
+console.log('smoke.test.js: OK (ФО: вопрос субъект→округ, 8 кнопок, верный ответ)');
+
+// --- ФО-02, smoke: легенда с центром (история 3, R10) ---
+// Из брифа дословно: ЦФО — центр Москва, «18 (17 областей и 1 город)»;
+// ДВФО — центр Владивосток (с декабря 2018 года).
+fire(els['ds-fo'], 'click');
+{
+  const labels = els.legend.children.map((b) => b.innerHTML);
+  assert.equal(labels.length, 8, '8 округов в легенде');
+  const cfo = labels.find((t) => t.includes('ЦФО'));
+  assert.ok(cfo && cfo.includes('Москва'), 'ЦФО: центр Москва: ' + cfo);
+  assert.ok(cfo.includes('18') && cfo.includes('17 областей') && cfo.includes('1 город'),
+    'ЦФО: счёт 18 с разбивкой: ' + cfo);
+  const dv = labels.find((t) => t.includes('ДВФО'));
+  assert.ok(dv && dv.includes('Владивосток'), 'ДВФО: центр Владивосток: ' + dv);
+  assert.ok(dv.includes('2018'), 'ДВФО: пометка про 2018: ' + dv);
+  assert.ok(dv.includes('11'), 'ДВФО: 11 субъектов: ' + dv);
+  const sz = labels.find((t) => t.includes('СЗФО'));
+  assert.ok(sz && sz.includes('Санкт-Петербург') && sz.includes('11'), 'СЗФО: центр и счёт: ' + sz);
+  const yu = labels.find((t) => t.includes('ЮФО'));
+  assert.ok(yu && yu.includes('Ростов-на-Дону') && yu.includes('12'), 'ЮФО: центр и 12: ' + yu);
+}
+fire(els['ds-eco'], 'click');
+
+console.log('smoke.test.js: OK (ФО: легенда с центром и счётом)');
+
+// --- ФО-02, smoke: статистика раздельно (история 1, решения) ---
+// Из спеки: asked/ok/errors/history/веса — раздельно (eco/fo),
+// переключение прогресс не смешивает.
+fire(els['btn-again'], 'click');
+fire(els['btn-reset'], 'click');
+fire(els['ds-eco'], 'click');
+function ecoWrongOnce() {
+  fire(els['btn-mode-sd'], 'click');
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  assert.ok(w, 'эко-вопрос про известный субъект');
+  const wb = els['district-btns'].children.find((b) => b.dataset.district !== w.district);
+  wb.closest = () => wb;
+  fire(els['district-btns'], 'click', { target: wb });
+  fire(els['district-btns'], 'click', { target: wb });
+  fire(els['district-btns'], 'click', { target: wb });
+  fire(els['btn-finish'], 'click');
+}
+function foWrongOnce() {
+  fire(els['btn-mode-sd'], 'click');
+  assert.match(els['q-title'].textContent, /федеральный округ/);
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  assert.ok(w, 'фо-вопрос про известный субъект');
+  const foWant = GEO.FO_OF[w.svgId];
+  const wb = els['district-btns'].children.find((b) => b.dataset.district !== foWant);
+  assert.ok(wb, 'есть неверный округ');
+  wb.closest = () => wb;
+  fire(els['district-btns'], 'click', { target: wb });
+  fire(els['district-btns'], 'click', { target: wb });
+  fire(els['district-btns'], 'click', { target: wb });
+  fire(els['btn-finish'], 'click');
+}
+ecoWrongOnce();
+{
+  const st = JSON.parse(store['geo-trainer-v1']);
+  assert.ok(Object.keys(st.asked.eco).length > 0, 'эко-статистика пишется в eco');
+  assert.deepEqual(st.asked.fo, {}, 'fo пока пуст');
+  assert.equal(st.errors.length, 1, 'одна эко-ошибка');
+  assert.equal(st.errors[0].ds, 'eco', 'ошибка помечена eco');
+}
+fire(els['ds-fo'], 'click');
+assert.equal(els['btn-errors'].hidden, true, 'в fo эко-ошибки не видны');
+foWrongOnce();
+{
+  const st = JSON.parse(store['geo-trainer-v1']);
+  assert.ok(Object.keys(st.asked.fo).length > 0, 'фо-статистика пишется в fo');
+  assert.ok(Object.keys(st.asked.eco).length > 0, 'эко-статистика сохранилась');
+  assert.equal(st.errors.length, 2, 'ошибки обоих наборов хранятся');
+  assert.deepEqual(new Set(st.errors.map((e) => e.ds)), new Set(['eco', 'fo']), 'ошибки помечены наборами');
+  assert.deepEqual(new Set(st.history.map((h) => h.ds)), new Set(['eco', 'fo']), 'история помечена наборами');
+  const ecoKeys = new Set(Object.keys(st.asked.eco));
+  for (const k of Object.keys(st.asked.fo)) assert.ok(!ecoKeys.has(k), 'ключи статистики не смешиваются: ' + k);
+}
+fire(els['ds-eco'], 'click');
+assert.ok(els['btn-errors'].textContent.includes('(1)'), 'в eco одна ошибка, а не две: ' + els['btn-errors'].textContent);
+fire(els['ds-fo'], 'click');
+assert.ok(els['btn-errors'].textContent.includes('(1)'), 'в fo одна ошибка: ' + els['btn-errors'].textContent);
+fire(els['ds-eco'], 'click');
+
+console.log('smoke.test.js: OK (ФО: статистика/ошибки/история раздельно)');
+
+// --- ФО-02, smoke: изучение красит по ФО + округ→субъекты на данных ФО ---
+// Из спеки: изучение и округ→субъекты — на данных ФО; счётчики из состава:
+// ЦФО 18, СЗФО 11, ЮФО 12, СКФО 7, ПФО 14, УрФО 6, СФО 10, ДВФО 11.
+fire(els['ds-fo'], 'click');
+fire(els['btn-study'], 'click');
+{
+  const foColor = {};
+  GEO.FO_GROUPS.forEach((g) => { foColor[g.id] = g.color; });
+  const mowIdx = GEO.SUBJECTS.findIndex((s) => s.svgId === 'RU-MOW');
+  assert.equal(svgPaths[mowIdx].style.fill, foColor[GEO.FO_OF['RU-MOW']], 'Москва красится цветом ЦФО');
+  assert.equal(GEO.FO_OF['RU-MOW'], 'cfo', 'оракул: Москва — ЦФО');
+}
+fire(els['btn-mode-ds'], 'click');
+assert.ok(els['q-title'].textContent.includes('Покажи на карте'), 'вопрос округ→субъекты');
+{
+  const g = GEO.FO_GROUPS.find((x) => els['q-title'].textContent.includes(x.name));
+  assert.ok(g, 'округ вопроса известен');
+  const knownCounts = { cfo: 18, szfo: 11, yufo: 12, skfo: 7, pfo: 14, urfo: 6, sfo: 10, dvfo: 11 };
+  const members = GEO.SUBJECTS.filter((s) => GEO.FO_OF[s.svgId] === g.id);
+  assert.equal(members.length, knownCounts[g.id], 'состав округа по спеке: ' + g.id);
+  members.forEach((s) => {
+    fire(svg, 'click', { target: svgPaths[GEO.SUBJECTS.indexOf(s)] });
+  });
+  fire(els['btn-done'], 'click');
+  assert.match(els['q-msg'].textContent, /Верно/, 'все субъекты округа найдены');
+}
+fire(els['btn-finish'], 'click');
+fire(els['ds-eco'], 'click');
+
+console.log('smoke.test.js: OK (ФО: изучение по ФО, округ→субъекты)');
+
+// --- ФО-02, smoke: соседи группируют по ФО ---
+// Из спеки: та же матрица NEIGHBORS, группировка по ФО (статистика — в fo-id).
+fire(els['btn-reset'], 'click');
+fire(els['ds-fo'], 'click');
+fire(els['btn-mode-nb'], 'click');
+assert.match(els['q-title'].textContent, /сосед/i, 'вопрос про соседей в ФО');
+{
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  assert.ok(w && (GEO.NEIGHBORS[w.svgId] || []).length >= 1, 'у субъекта есть соседи');
+  const foId = GEO.FO_OF[w.svgId];
+  GEO.NEIGHBORS[w.svgId].forEach((id) => {
+    fire(svg, 'click', { target: svgPaths[GEO.SUBJECTS.findIndex((s) => s.svgId === id)] });
+  });
+  fire(els['btn-done'], 'click');
+  assert.match(els['q-msg'].textContent, /Верно/, 'соседи найдены');
+  fire(els['btn-finish'], 'click');
+  const st = JSON.parse(store['geo-trainer-v1']);
+  assert.ok(st.asked.fo[foId] >= 1, 'статистика соседей — в ФО-группе ' + foId);
+  assert.deepEqual(st.asked.eco, {}, 'эко-статистика не тронута соседями ФО');
+}
+fire(els['ds-eco'], 'click');
+
+console.log('smoke.test.js: OK (ФО: соседи группируют по ФО)');
 

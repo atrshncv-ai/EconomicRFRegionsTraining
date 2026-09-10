@@ -9,50 +9,155 @@
   var SOUND = window.GEO_SOUND || null;
   var DISTRICTS = DATA.DISTRICTS;
   var SUBJECTS = DATA.SUBJECTS;
+  var FO_GROUPS = DATA.FO_GROUPS || [];
+  var FO_OF = DATA.FO_OF || {};
   var bySvg = {}, byDistrict = {};
   SUBJECTS.forEach(function (s) {
     bySvg[s.svgId] = s;
     (byDistrict[s.district] = byDistrict[s.district] || []).push(s);
   });
+  var byFo = {};
+  SUBJECTS.forEach(function (s) {
+    var f = FO_OF[s.svgId];
+    if (f) (byFo[f] = byFo[f] || []).push(s);
+  });
+  // Активный набор: 'eco' (12 районов) или 'fo' (8 округов).
+  var dataset = 'eco';
+  function curGroups() { return dataset === 'fo' ? FO_GROUPS : DISTRICTS; }
+  function groupOf(svgId) {
+    if (dataset === 'fo') return FO_OF[svgId];
+    return bySvg[svgId] ? bySvg[svgId].district : undefined;
+  }
+  function membersOf(groupId) {
+    var arr = dataset === 'fo' ? (byFo[groupId] || []) : (byDistrict[groupId] || []);
+    return arr.map(function (s) { return s.svgId; });
+  }
+  function memberSubjects(groupId) {
+    return dataset === 'fo' ? (byFo[groupId] || []) : (byDistrict[groupId] || []);
+  }
+  // Представление субъектов под активный набор: поле district = id группы
+  // активного набора, чтобы обобщённое ядро quiz работало без изменений.
+  function activeSubjects() {
+    if (dataset === 'eco') return SUBJECTS;
+    return SUBJECTS.map(function (s) {
+      return { svgId: s.svgId, name: s.name, district: FO_OF[s.svgId], schematic: s.schematic };
+    });
+  }
+  function groupById(id) {
+    var gs = curGroups();
+    for (var i = 0; i < gs.length; i++) if (gs[i].id === id) return gs[i];
+    return null;
+  }
   function districtName(id) {
+    var g = groupById(id);
+    if (g) return g.name;
     for (var i = 0; i < DISTRICTS.length; i++) if (DISTRICTS[i].id === id) return DISTRICTS[i].name;
+    for (var j = 0; j < FO_GROUPS.length; j++) if (FO_GROUPS[j].id === id) return FO_GROUPS[j].name;
     return id;
   }
   function districtColor(id) {
+    var g = groupById(id);
+    if (g) return g.color;
     for (var i = 0; i < DISTRICTS.length; i++) if (DISTRICTS[i].id === id) return DISTRICTS[i].color;
+    for (var j = 0; j < FO_GROUPS.length; j++) if (FO_GROUPS[j].id === id) return FO_GROUPS[j].color;
     return '#ccc';
+  }
+  // Разбивка счёта ФО по типам — выводится из названий субъектов.
+  function typeOf(name) {
+    if (name.indexOf('область') !== -1) return 'obl';
+    if (name.indexOf('край') !== -1) return 'krai';
+    if (/республик/i.test(name)) return 'rep';
+    if (name.indexOf('округ') !== -1) return 'okr';
+    return 'city';
+  }
+  function plural(n, one, few, many) {
+    var m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+    return many;
+  }
+  function breakdownText(groupId) {
+    var members = memberSubjects(groupId);
+    var c = { obl: 0, krai: 0, rep: 0, okr: 0, city: 0 };
+    members.forEach(function (s) { c[typeOf(s.name)]++; });
+    var parts = [];
+    if (c.obl) parts.push(c.obl + ' ' + plural(c.obl, 'область', 'области', 'областей'));
+    if (c.krai) parts.push(c.krai + ' ' + plural(c.krai, 'край', 'края', 'краёв'));
+    if (c.rep) parts.push(c.rep + ' ' + plural(c.rep, 'республика', 'республики', 'республик'));
+    if (c.okr) parts.push(c.okr + ' ' + plural(c.okr, 'округ', 'округа', 'округов'));
+    if (c.city) parts.push(c.city + ' ' + plural(c.city, 'город', 'города', 'городов'));
+    if (!parts.length) return members.length + '';
+    if (parts.length === 1) return members.length + ': ' + parts[0];
+    return members.length + ': ' + parts.slice(0, -1).join(', ') + ' и ' + parts[parts.length - 1];
+  }
+  function centerText(g) {
+    if (!g || !g.center) return '';
+    return g.centerNote ? g.center + ' (' + g.centerNote + ')' : g.center;
   }
 
   var STORE_KEY = 'geo-trainer-v1';
-  var store = { ok: {}, asked: {}, errors: [], history: [], sound: true };
+  var store = { dataset: 'eco', ok: { eco: {}, fo: {} }, asked: { eco: {}, fo: {} }, errors: [], history: [], sound: true };
   var storageOK = true;
+  function ensureNs() {
+    if (!store.ok || typeof store.ok !== 'object') store.ok = { eco: {}, fo: {} };
+    if (!store.asked || typeof store.asked !== 'object') store.asked = { eco: {}, fo: {} };
+    // Миграция плоского хранилища экон. набора: {ok:{central:..}} → {ok:{eco:{..},fo:{}}}.
+    if (store.ok.eco === undefined && store.ok.fo === undefined) {
+      store.ok = { eco: store.ok, fo: {} };
+    }
+    if (store.asked.eco === undefined && store.asked.fo === undefined) {
+      store.asked = { eco: store.asked, fo: {} };
+    }
+    if (!store.ok.eco || typeof store.ok.eco !== 'object') store.ok.eco = {};
+    if (!store.ok.fo || typeof store.ok.fo !== 'object') store.ok.fo = {};
+    if (!store.asked.eco || typeof store.asked.eco !== 'object') store.asked.eco = {};
+    if (!store.asked.fo || typeof store.asked.fo !== 'object') store.asked.fo = {};
+    if (!Array.isArray(store.errors)) store.errors = [];
+    if (!Array.isArray(store.history)) store.history = [];
+    store.errors.forEach(function (e) { if (e && !e.ds) e.ds = 'eco'; });
+    store.history.forEach(function (h) { if (h && !h.ds) h.ds = 'eco'; });
+    if (store.dataset !== 'eco' && store.dataset !== 'fo') store.dataset = 'eco';
+  }
   function loadStore() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (raw) store = JSON.parse(raw);
       if (store.sound === undefined) store.sound = true;
       if (!store.history) store.history = [];
-      if (!store.ok) store.ok = {};
-      if (!store.asked) store.asked = {};
+      if (!store.ok) store.ok = { eco: {}, fo: {} };
+      if (!store.asked) store.asked = { eco: {}, fo: {} };
       if (!store.errors) store.errors = [];
-    } catch (e) { storageOK = false; }
+      ensureNs();
+      dataset = store.dataset;
+    } catch (e) { storageOK = false; ensureNs(); }
   }
   function saveStore() {
     if (!storageOK) return;
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+    try { store.dataset = dataset; localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
     catch (e) { storageOK = false; }
   }
+  function askedSlice() { return store.asked[dataset] || {}; }
+  function okSlice() { return store.ok[dataset] || {}; }
+  function errorsOf() { return store.errors.filter(function (e) { return (e.ds || 'eco') === dataset; }); }
+  function historyOf() { return store.history.filter(function (h) { return (h.ds || 'eco') === dataset; }); }
   function recordResult(districtId, ok) {
-    store.asked[districtId] = (store.asked[districtId] || 0) + 1;
-    if (ok) store.ok[districtId] = (store.ok[districtId] || 0) + 1;
+    var A = store.asked[dataset] || (store.asked[dataset] = {});
+    var O = store.ok[dataset] || (store.ok[dataset] = {});
+    A[districtId] = (A[districtId] || 0) + 1;
+    if (ok) O[districtId] = (O[districtId] || 0) + 1;
     saveStore();
   }
-  function pushError(err) { store.errors.push(err); saveStore(); }
+  function pushError(err) { err = err || {}; err.ds = dataset; store.errors.push(err); saveStore(); }
 
-  // История игр (R01.3): последние 20 (дата, счёт, всего из 2×N).
+  // История игр (R01.3): последние 20 на набор (дата, счёт, всего из 2×N).
   function pushHistory(game) {
-    store.history.push(game);
-    if (store.history.length > 20) store.history = store.history.slice(-20);
+    game = game || {}; game.ds = dataset;
+    // Кап 20 — на активный набор, чтобы один набор не вытеснял другой.
+    var other = store.history.filter(function (h) { return (h.ds || 'eco') !== dataset; });
+    var mine = store.history.filter(function (h) { return (h.ds || 'eco') === dataset; });
+    mine.push(game);
+    if (mine.length > 20) mine = mine.slice(-20);
+    store.history = other.concat(mine);
     saveStore();
   }
 
@@ -103,7 +208,7 @@
 
   function paintStudy() {
     Object.keys(paths).forEach(function (id) {
-      paths[id].style.fill = districtColor(bySvg[id].district);
+      paths[id].style.fill = districtColor(groupOf(id));
       paths[id].classList.remove('dim', 'good', 'bad', 'hinted', 'active-q');
     });
   }
@@ -184,9 +289,16 @@
   // Легенда
   var legend = document.getElementById('legend');
   var legendList = document.getElementById('legend-list');
+  function legendLabel(d) {
+    if (dataset === 'fo') {
+      var c = d.center ? ' — центр: ' + centerText(d) : '';
+      return d.name + ' (' + d.abbr + ')' + c + ' — ' + breakdownText(d.id);
+    }
+    return d.name;
+  }
   function renderLegendList(districtId) {
     legendList.innerHTML = '';
-    (byDistrict[districtId] || []).forEach(function (s) {
+    memberSubjects(districtId).forEach(function (s) {
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'legend-subject';
@@ -201,52 +313,61 @@
       legendList.appendChild(b);
     });
   }
-  DISTRICTS.forEach(function (d, i) {
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'legend-item';
-    b.innerHTML = '<span class="chip" style="background:' + d.color + '"></span>' +
-      '<span class="num">' + (i + 1) + '</span> ' + d.name;
-    b.addEventListener('mouseenter', function () {
-      if (!document.getElementById('screen-study').hidden) dimAllExcept(byDistrict[d.id].map(function (s) { return s.svgId; }));
+  function renderLegend() {
+    legend.innerHTML = '';
+    legendList.innerHTML = '';
+    curGroups().forEach(function (d, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'legend-item';
+      b.dataset.group = d.id;
+      b.innerHTML = '<span class="chip" style="background:' + d.color + '"></span>' +
+        '<span class="num">' + (i + 1) + '</span> ' + legendLabel(d);
+      b.addEventListener('mouseenter', function () {
+        if (!document.getElementById('screen-study').hidden) dimAllExcept(membersOf(d.id));
+      });
+      b.addEventListener('mouseleave', function () {
+        if (!document.getElementById('screen-study').hidden) paintStudy();
+      });
+      b.addEventListener('click', function () {
+        if (!document.getElementById('screen-study').hidden) {
+          dimAllExcept(membersOf(d.id));
+          renderLegendList(d.id);
+        }
+      });
+      legend.appendChild(b);
     });
-    b.addEventListener('mouseleave', function () {
-      if (!document.getElementById('screen-study').hidden) paintStudy();
-    });
-    b.addEventListener('click', function () {
-      if (!document.getElementById('screen-study').hidden) {
-        dimAllExcept(byDistrict[d.id].map(function (s) { return s.svgId; }));
-        renderLegendList(d.id);
-      }
-    });
-    legend.appendChild(b);
-  });
+  }
 
-  // Кнопки выбора района (12)
+  // Кнопки выбора группы (12 районов / 8 округов)
   var dBtns = document.getElementById('district-btns');
-  DISTRICTS.forEach(function (d, i) {
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'district-btn';
-    b.dataset.district = d.id;
-    b.innerHTML = '<span class="chip" style="background:' + d.color + '"></span>' +
-      '<span class="num">' + (i + 1) + '</span> ' + d.name;
-    dBtns.appendChild(b);
-  });
+  function renderDistrictBtns() {
+    dBtns.innerHTML = '';
+    curGroups().forEach(function (d, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'district-btn';
+      b.dataset.district = d.id;
+      b.innerHTML = '<span class="chip" style="background:' + d.color + '"></span>' +
+        '<span class="num">' + (i + 1) + '</span> ' + (dataset === 'fo' ? d.abbr + ' — ' + d.name : d.name);
+      dBtns.appendChild(b);
+    });
+  }
 
-  // Печать состава (R01.4): районы и списки субъектов, без карты-игры.
-  // Заголовок — статикой в template; сюда — 12 разделов со списками.
-  (function buildPrint() {
+  // Печать состава: активный набор (второй набор — таск 03).
+  function buildPrint() {
     var pl = document.getElementById('print-list');
     pl.innerHTML = '';
-    DISTRICTS.forEach(function (d) {
+    curGroups().forEach(function (d) {
       var sec = document.createElement('div');
       sec.className = 'print-district';
       var h = document.createElement('h3');
-      h.textContent = d.name;
+      h.textContent = dataset === 'fo'
+        ? d.name + ' (' + d.abbr + ') — центр: ' + centerText(d) + ' — ' + breakdownText(d.id)
+        : d.name;
       sec.appendChild(h);
       var ul = document.createElement('ul');
-      (byDistrict[d.id] || []).forEach(function (s) {
+      memberSubjects(d.id).forEach(function (s) {
         var li = document.createElement('li');
         li.textContent = s.name;
         ul.appendChild(li);
@@ -254,7 +375,7 @@
       sec.appendChild(ul);
       pl.appendChild(sec);
     });
-  })();
+  }
   document.getElementById('btn-print').addEventListener('click', function () {
     sfx('click');
     if (typeof window !== 'undefined' && typeof window.print === 'function') window.print();
@@ -300,26 +421,32 @@
   function startMode(mode) {
     var strict = document.getElementById('strict').checked;
     var n = mode === 'district-subjects' ? 6 : 10;
-    var pool = mode === 'subject-district' ? SUBJECTS : DISTRICTS;
-    // R01.1: слабые районы спрашивают чаще — веса из статистики ответов.
-    var qs = QUIZ.buildRound(mode, SUBJECTS, DISTRICTS, n, Math.random,
-      QUIZ.weightsFromStats(store.asked, store.ok));
+    // R01.1: слабые группы спрашивают чаще — веса из статистики активного набора.
+    var qs = QUIZ.buildRound(mode, activeSubjects(), curGroups(), n, Math.random,
+      QUIZ.weightsFromStats(askedSlice(), okSlice()));
     if (!qs.length) return;
     newGame(mode, qs, strict);
+  }
+  function subjectFor(ds, svgId) {
+    if (ds === 'fo') {
+      var s = bySvg[svgId];
+      if (!s) return null;
+      return { svgId: s.svgId, name: s.name, district: FO_OF[svgId], schematic: s.schematic };
+    }
+    return bySvg[svgId] || null;
   }
   function startErrors() {
     var strict = document.getElementById('strict').checked;
     var qs = [];
-    store.errors.slice(-30).forEach(function (e) {
+    errorsOf().slice(-30).forEach(function (e) {
       if (e.mode === 'subject-district' && bySvg[e.svgId]) {
-        qs.push({ kind: 'subject-district', subject: bySvg[e.svgId] });
+        qs.push({ kind: 'subject-district', subject: subjectFor(dataset, e.svgId) });
       } else if (e.mode === 'district-subjects') {
-        var d = DISTRICTS.filter(function (x) { return x.id === e.district; })[0];
-        if (d) qs.push({ kind: 'mixed-district', district: d,
-          members: (byDistrict[d.id] || []).map(function (s) { return s.svgId; }) });
+        var d = groupById(e.district);
+        if (d) qs.push({ kind: 'mixed-district', district: d, members: membersOf(d.id) });
       } else if (e.mode === 'neighbors' && bySvg[e.svgId] &&
           DATA.NEIGHBORS[e.svgId] && DATA.NEIGHBORS[e.svgId].length) {
-        qs.push({ kind: 'neighbors', subject: bySvg[e.svgId],
+        qs.push({ kind: 'neighbors', subject: subjectFor(dataset, e.svgId),
           neighbors: DATA.NEIGHBORS[e.svgId].slice() });
       }
     });
@@ -333,7 +460,7 @@
     var strict = document.getElementById('strict').checked;
     var qs = [], guard = 0;
     while (qs.length < 6 && guard++ < 200) {
-      var q = QUIZ.neighborQuestion(SUBJECTS, DATA.NEIGHBORS, Math.random);
+      var q = QUIZ.neighborQuestion(activeSubjects(), DATA.NEIGHBORS, Math.random);
       if (q && qs.every(function (x) { return x.subject.svgId !== q.subject.svgId; })) qs.push(q);
     }
     if (!qs.length) return;
@@ -367,7 +494,9 @@
     dBtns.style.display = (q.kind === 'subject-district') ? '' : 'none';
     progress.textContent = 'Вопрос ' + (G.i + 1) + ' из ' + G.questions.length + ' · Счёт ' + G.score;
     if (q.kind === 'subject-district' || (G.mode === 'errors' && q.kind === 'subject-district')) {
-      qTitle.textContent = 'Какой экономический район: ' + q.subject.name + '?';
+      qTitle.textContent = dataset === 'fo'
+        ? 'Какой федеральный округ: ' + q.subject.name + '?'
+        : 'Какой экономический район: ' + q.subject.name + '?';
       qHint.textContent = 'Подсказка: регион подсвечен на карте.';
       dimAllExcept([q.subject.svgId]);
       paths[q.subject.svgId].classList.add('active-q');
@@ -404,7 +533,7 @@
       setTimeout(next, 900);
     } else if (G.attempts >= 3) {
       if (!G.strict) {
-        dimAllExcept(byDistrict[q.subject.district].map(function (s) { return s.svgId; }));
+        dimAllExcept(membersOf(q.subject.district));
         qMsg.textContent = 'Правильно: ' + districtName(q.subject.district) + '. Запомним!';
       } else {
         qMsg.textContent = 'Неверно. Идём дальше.';
@@ -485,8 +614,10 @@
     var q = curQ();
     if (q.kind !== 'subject-district') return;
     G.hinted = true;
-    dimAllExcept(byDistrict[q.subject.district].map(function (s) { return s.svgId; }));
-    qMsg.textContent = 'Район подсвечен на карте. Балл за вопрос уже не получишь, но запомнишь!';
+    dimAllExcept(membersOf(q.subject.district));
+    qMsg.textContent = dataset === 'fo'
+      ? 'Округ подсвечен на карте. Балл за вопрос уже не получишь, но запомнишь!'
+      : 'Район подсвечен на карте. Балл за вопрос уже не получишь, но запомнишь!';
   });
   btnGiveup.addEventListener('click', function () {
     if (!G) return;
@@ -519,14 +650,15 @@
     pushHistory({ date: new Date().toISOString(), score: G.score, total: 2 * total });
     var rh = document.getElementById('res-history');
     rh.innerHTML = '';
-    store.history.slice(-5).reverse().forEach(function (g) {
+    historyOf().slice(-5).reverse().forEach(function (g) {
       var li = document.createElement('li');
       var when = g.date ? g.date.slice(0, 10) : '';
       li.textContent = (when ? when + ' — ' : '') + g.score + ' из ' + g.total;
       rh.appendChild(li);
     });
-    var per = DISTRICTS.map(function (d) {
-      var a = store.asked[d.id] || 0, o = store.ok[d.id] || 0;
+    var A = askedSlice(), O = okSlice();
+    var per = curGroups().map(function (d) {
+      var a = A[d.id] || 0, o = O[d.id] || 0;
       return { d: d, pct: a ? Math.round(100 * o / a) : null };
     });
     var ul = document.getElementById('res-districts');
@@ -537,7 +669,7 @@
         r.d.name + ' — ' + (r.pct === null ? 'пока нет' : r.pct + '%');
       ul.appendChild(li);
     });
-    document.getElementById('btn-retry-errors').hidden = !store.errors.length;
+    document.getElementById('btn-retry-errors').hidden = !errorsOf().length;
     G = null;
     paintStudy();
     sfx('finish');
@@ -555,8 +687,8 @@
     show('home'); startErrors();
   });
   document.getElementById('btn-reset').addEventListener('click', function () {
-    var sound = store.sound, th = store.theme;
-    store = { ok: {}, asked: {}, errors: [], history: [], sound: sound };
+    var sound = store.sound, th = store.theme, ds = dataset;
+    store = { dataset: ds, ok: { eco: {}, fo: {} }, asked: { eco: {}, fo: {} }, errors: [], history: [], sound: sound };
     if (th) store.theme = th;
     saveStore();
     refreshHome();
@@ -567,13 +699,48 @@
   });
 
   function refreshHome() {
-    var n = store.errors.length;
+    var n = errorsOf().length;
     var be = document.getElementById('btn-errors');
     be.hidden = !n;
     be.textContent = 'Повторить ошибки (' + n + ')';
   }
 
+  // Переключатель набора (шов таска ФО-02): легенда/кнопки/печать/изучение
+  // перестраиваются, статистика берётся из своего неймспейса.
+  function paintDatasetButtons() {
+    var eco = document.getElementById('ds-eco');
+    var fo = document.getElementById('ds-fo');
+    // Как в applyTheme: сбой DOM не глотаем молча — состояние фиксируем
+    // запасным путём (dataset.pressed), чтобы рассинхрон был виден.
+    if (eco && eco.setAttribute) {
+      try { eco.setAttribute('aria-pressed', dataset === 'eco' ? 'true' : 'false'); }
+      catch (e) { eco.dataset.pressed = (dataset === 'eco') ? 'true' : 'false'; }
+    }
+    if (fo && fo.setAttribute) {
+      try { fo.setAttribute('aria-pressed', dataset === 'fo' ? 'true' : 'false'); }
+      catch (e) { fo.dataset.pressed = (dataset === 'fo') ? 'true' : 'false'; }
+    }
+  }
+  function setDataset(name) {
+    if (name !== 'eco' && name !== 'fo') return dataset;
+    dataset = name;
+    saveStore();
+    paintDatasetButtons();
+    renderLegend();
+    renderDistrictBtns();
+    buildPrint();
+    paintStudy();
+    refreshHome();
+    return dataset;
+  }
+  function getDataset() { return dataset; }
+
   loadStore();
+  dataset = store.dataset || 'eco';
+  renderLegend();
+  renderDistrictBtns();
+  buildPrint();
+  paintDatasetButtons();
   paintStudy();
   refreshHome();
   var soundBox = document.getElementById('sound');
@@ -588,6 +755,9 @@
     setTheme(themeBox.checked ? 'contrast' : 'light');
     if (store.sound !== false) sfx('click');
   });
+  document.getElementById('ds-eco').addEventListener('click', function () { setDataset('eco'); sfx('click'); });
+  document.getElementById('ds-fo').addEventListener('click', function () { setDataset('fo'); sfx('click'); });
   applyTheme();
   show('home');
+  if (typeof window !== 'undefined') window.GEO_APP = { setDataset: setDataset, getDataset: getDataset };
 })();
