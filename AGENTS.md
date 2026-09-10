@@ -10,6 +10,7 @@
 | `python3 build.py` | Собрать `index.html` из `src/` + карты |
 | `node --test tests/data.test.js tests/quiz.test.js tests/smoke.test.js` | Прогнать тесты (data + quiz + smoke, 3 файла) |
 | `open index.html` | Открыть собранный тренажёр локально |
+| `python3 tools/build_neighbors.py` | Пересчитать `NEIGHBORS` из `vendor/map.svg` (stdout → в `src/data.js` вручную, сверка 0 расхождений) |
 
 ## Структура
 
@@ -22,7 +23,15 @@
 - `vendor/map.svg` — карта для сборки (основа alexTitakoff/svg-map-Russia, атрибуция в коде/подвале)
 - `ru.svg` — исходник карты от пользователя, в сборке не участвует, не трогать
 - `tests/data.test.js` / `tests/quiz.test.js` / `tests/smoke.test.js` — швы `GEO_DATA` / `GEO_QUIZ` / связка template↔app
+- `src/sound.js` — `GEO_SOUND`: `soundFor(event)`/`play(spec)`, UMD как `data.js`/`quiz.js`, в сборке отдельный `/*__SOUND__*/`
+- `src/data.js` + `NEIGHBORS`: `{svgId: [svgId...]}` симметрично, 87 ключей, `RU-KGD`/`RU-SAK` вне матрицы
+- `src/quiz.js` + `weightFor`/`weightsFromStats`/`neighborQuestion`/`bonusFor`; `buildRound(mode, subjects, districts, n, rng, weights)` только явная форма
+- `src/app.js` + режимы `neighbors`/`errors`: секундомер `q-timer`, `history` (20/5), `theme`, `print-list`, `legend-list`, тумблер `sound`
+- `src/template.html` + `/*__SOUND__*/`, ids `q-timer`/`legend-list`/`sound`/`theme`/`btn-print`/`print-list`/`btn-mode-nb`/`res-history`/`res-time`
+- `tools/build_neighbors.py` — генератор соседства (геометрия `EPS=0.5` + `MANUAL` + анклавы), только stdlib
+- `tests/*` расширены: `data` — симметрия/известные id/без петель; `quiz` — веса/бонус/соседи; `smoke` — звук/таймер/история/пауза/легенда/тема/печать/соседи
 - `.autopilot/geo-trainer/interfaces.md` — накопленные границы и правила сборки
+- Актуальные границы — `.autopilot/extras/interfaces.md` (швы `weightFor`/`neighborQuestion`/`bonusFor`/`soundFor`)
 
 ## Подводные камни
 
@@ -40,6 +49,17 @@
 - `tests/data.test.js` требует офлайна: в `index.html` нет `http://`, кроме `w3.org`.
 - `tests/smoke.test.js` на поддельном DOM: каждый `getElementById` из `src/app.js` обязан существовать в `src/template.html`.
 - Зависимостей нет: недостающее из сети не ставить, вернуть `BLOCKED`.
+- `tools/build_neighbors.py` обязан совпадать с `src/data.js` (0 расхождений, проверено): `assert` 85 контуров, `MANUAL` 8 рёбер, анклавы `MOW→MOS`/`SPE→LEN`/`SEV→CR`.
+- `NEIGHBORS` симметрично без петель, только id из `SUBJECTS`; `neighborQuestion` без eligible возвращает `null`, `KGD`/`SAK` не выпадают.
+- `weightFor`: `0→1`, `100→0.1` (пол), не-число→1; отсутствующий вес в `buildRound` = 1.
+- `bonusFor` +1 лишь `attempt=1`, `<8с`, без подсказки; быстрый верный в `subject-district` = `3 из 20`.
+- `soundFor`: 4 различимых (`correct 660/0.12`, `wrong 180/0.25`, `finish 880/0.4`, `click 440/0.07`); `play` без `AudioContext` — no-op.
+- Секундомер через `visibleSeconds`, пауза по `visibilitychange` (`hiddenMs`/`roundHiddenMs`); уход с `game` в `show()` останавливает тимер.
+- `store.history` кап 20, на результате последние 5; `store.theme` создаётся только явным переключением, `applyTheme` при сбое откатывается на `light`.
+- `#legend-list` только в Изучении, в игре молчит; карта в игре нейтральная `#cfd8e3` в обеих темах.
+- `#btn-print` → `window.print()`, `@media print` прячет карту-игру, `print-list` строится в JS (12 разделов).
+- `btn-reset` чистит `ok`/`asked`/`errors`/`history`, но сохраняет `sound`/`theme`.
+- Раунд соседи — 6 без повторов (`guard 200`); `startErrors` по-прежнему последние 30.
 
 ## Как здесь работает Autopilot
 
