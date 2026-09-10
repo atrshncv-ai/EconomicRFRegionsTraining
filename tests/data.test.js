@@ -28,5 +28,9 @@ assert.deepEqual(schematic, ['RU-DNR', 'RU-KHE', 'RU-LNR', 'RU-ZAP'], 'схем�
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 for (const s of SUBJECTS) assert.ok(html.includes('id="' + s.svgId + '"'), 'в index.html нет ' + s.svgId);
 assert.ok(!html.includes('http://') || html.includes('http://www.w3.org'), 'нет внешних запросов');
+assert.ok(html.includes('alexTitakoff'), 'атрибуция карты в подвале');
+assert.ok(html.includes('Новые регионы'), 'врезка новых регионов на месте');
+assert.ok(html.includes('<title>Москва</title>'), 'русские title в контурах');
+assert.ok(html.includes('Что такое экономические районы'), 'экран теории на месте');
 
 console.log('data.test.js: OK (89 субъектов, 12 районов, index.html покрыт)');

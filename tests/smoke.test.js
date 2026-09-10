@@ -89,6 +89,7 @@ assert.equal(els['screen-game'].hidden, false);
 assert.ok(els['q-title'].textContent.length > 5);
 // Кнопки районов созданы (12)
 assert.equal(els['district-btns'].children.length, 12);
+assert.equal(els.legend.children.length, 12, 'легенда: 12 районов');
 // Находим кнопку правильного района и кликаем через делегированный слушатель
 const want = SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
 assert.ok(want, 'вопрос про известный субъект');
@@ -117,4 +118,84 @@ fire(els['btn-done'], 'click');
 assert.ok(/Найдено|Верно/.test(els['q-msg'].textContent), 'подсчёт найден/пропущен: ' + els['q-msg'].textContent);
 
 console.log('smoke.test.js: OK (район→субъекты: клик по карте + Готово)');
+
+// --- Ветки, не покрытые раньше ---
+// Чистим ошибки прошлых шагов, чтобы раунд ошибок был детерминирован
+fire(els['btn-reset'], 'click');
+function sdQuestion() {
+  fire(els['btn-mode-sd'], 'click');
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  assert.ok(w, 'вопрос про известный субъект');
+  return w;
+}
+function wrongBtnFor(w) {
+  return els['district-btns'].children.find((b) => b.dataset.district !== w.district);
+}
+
+// Строгий режим прячет подсказку
+els.strict.checked = true;
+sdQuestion();
+assert.equal(els['btn-hint'].hidden, true, 'в строгом режиме подсказки нет');
+els.strict.checked = false;
+
+// Неверный ответ: «Мимо», метка tried, с 3-й — показ правильного
+sdQuestion();
+const w1 = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+const wb = wrongBtnFor(w1);
+wb.closest = () => wb;
+fire(els['district-btns'], 'click', { target: wb });
+assert.ok(els['q-msg'].textContent.includes('Мимо'), 'промах комментируется');
+assert.ok(wb.classList.contains('tried'), 'кнопка промаха помечена');
+fire(els['district-btns'], 'click', { target: wb });
+fire(els['district-btns'], 'click', { target: wb });
+assert.ok(els['q-msg'].textContent.includes('Правильно:'), 'с 3-й попытки ответ раскрыт');
+
+// Подсказка обнуляет балл, но игра идёт
+sdQuestion();
+fire(els['btn-hint'], 'click');
+assert.ok(els['q-msg'].textContent.includes('подсвечен'), 'подсказка дана');
+
+// «Не знаю» ведёт к следующему вопросу
+fire(els['btn-giveup'], 'click');
+assert.ok(els['q-progress'].textContent.includes('Вопрос 2'), 'после «Не знаю» — вопрос 2');
+
+// «Мне хватит» — досрочный результат
+fire(els['btn-finish'], 'click');
+assert.equal(els['screen-result'].hidden, false, 'результат показан');
+assert.ok(els['res-score'].textContent.includes('из 20'), 'счёт вида «X из 20»');
+
+// Ошибки копятся и переигрываются
+assert.equal(els['btn-retry-errors'].hidden, false, 'кнопка работы над ошибками видна');
+fire(els['btn-retry-errors'], 'click');
+assert.equal(els['screen-game'].hidden, false, 'раунд ошибок стартовал');
+assert.ok(els['q-title'].textContent.includes('Какой экономический район'), 'ошибка по субъекту переиграна');
+fire(els['btn-finish'], 'click');
+
+// Сброс чистит прогресс
+fire(els['btn-again'], 'click');
+fire(els['btn-reset'], 'click');
+assert.equal(els['btn-errors'].hidden, true, 'после сброса ошибок нет');
+assert.equal(store['geo-trainer-v1'], '{"ok":{},"asked":{},"errors":[]}', 'хранилище сброшено');
+
+// Район→субъекты: Enter с клавиатуры, промах, «Готово» с пропусками.
+// Калининград из 1 субъекта для этого сценария не годится — перевыбираем.
+let d2 = null;
+for (let t = 0; t < 20 && !(d2 && GEO.SUBJECTS.filter((s) => s.district === d2.id).length > 1); t++) {
+  fire(els['btn-mode-ds'], 'click');
+  d2 = GEO.DISTRICTS.find((d) => els['q-title'].textContent.includes(d.name));
+}
+const mem = GEO.SUBJECTS.find((s) => s.district === d2.id);
+const memPath = svgPaths[GEO.SUBJECTS.indexOf(mem)];
+fire(svg, 'keydown', { target: memPath, key: 'Enter' });
+assert.ok(memPath.classList.contains('good'), 'выбор с клавиатуры работает');
+const alien = GEO.SUBJECTS.find((s) => s.district !== d2.id);
+const alienPath = svgPaths[GEO.SUBJECTS.indexOf(alien)];
+fire(svg, 'click', { target: alienPath });
+assert.ok(els['q-msg'].textContent.includes('не входит'), 'чужой регион отклонён');
+fire(els['btn-done'], 'click');
+assert.ok(els['q-msg'].textContent.includes('Пропущены'), 'пропуски перечислены');
+fire(els['btn-finish'], 'click');
+assert.equal(els['screen-result'].hidden, false, 'финал после второго режима');
+
+console.log('smoke.test.js: OK (ветки: мимо/подсказка/сдача/финиш/ошибки/сброс/клавиатура)');
 
