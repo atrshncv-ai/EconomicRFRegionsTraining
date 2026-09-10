@@ -99,4 +99,12 @@ assert.deepEqual(
   Q.buildRound('subject-district', wSubjects, wDistricts, 2, Q.makeRng(11), wWeights).map((x) => x.subject.svgId)
 );
 
+// weightsFromStats: веса районов из статистики (R01.1, доборка таска 04).
+// Вручную по формуле спеки (1 − %/100, пол 0.1, неизвестный → 1):
+// central: 1 верный из 4 = 25% → 0.75; a: 2/2 = 100% → 0.1; b без ok → 1.
+assert.deepEqual(Q.weightsFromStats({ central: 4 }, { central: 1 }), { central: 0.75 });
+assert.deepEqual(Q.weightsFromStats({ a: 2, b: 5 }, { a: 2 }), { a: 0.1, b: 1 });
+assert.deepEqual(Q.weightsFromStats({}, {}), {});
+assert.deepEqual(Q.weightsFromStats(), {});
+
 console.log('quiz.test.js: OK (вопросы, проверка, раунды)');

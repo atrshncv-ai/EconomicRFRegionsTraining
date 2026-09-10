@@ -41,6 +41,22 @@
     return w < 0.1 ? 0.1 : w;
   }
 
+  // Веса районов из статистики ответов (R01.1): % верных каждого района
+  // через weightFor; район без статистики в карту не попадает —
+  // buildRound даёт отсутствующему весу значение по умолчанию (1).
+  function weightsFromStats(asked, ok) {
+    asked = asked || {};
+    ok = ok || {};
+    var out = {};
+    Object.keys(asked).concat(Object.keys(ok)).forEach(function (id) {
+      if (out.hasOwnProperty(id)) return;
+      var a = asked[id], o = ok[id];
+      var pct = (typeof a === 'number' && a > 0 && typeof o === 'number') ? 100 * o / a : NaN;
+      out[id] = weightFor(pct);
+    });
+    return out;
+  }
+
   // Вопрос «субъект → район»: какой район у этого субъекта.
   // Варианты не фиксируем — приложение показывает все 12 районов.
   function subjectQuestion(subjects, rng) {
@@ -153,6 +169,7 @@
     makeRng: makeRng,
     shuffle: shuffle,
     weightFor: weightFor,
+    weightsFromStats: weightsFromStats,
     subjectQuestion: subjectQuestion,
     districtQuestion: districtQuestion,
     checkSubjectAnswer: checkSubjectAnswer,

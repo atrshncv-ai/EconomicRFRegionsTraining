@@ -40,11 +40,12 @@ function makeEl(id) {
 
 const els = {};
 ['home', 'study', 'game', 'result'].forEach((s) => { els['screen-' + s] = makeEl('screen-' + s); });
-['tip', 'legend', 'district-btns', 'q-title', 'q-hint', 'q-msg', 'btn-hint', 'btn-giveup',
+['tip', 'legend', 'legend-list', 'district-btns', 'q-title', 'q-hint', 'q-msg', 'btn-hint', 'btn-giveup',
   'btn-finish', 'btn-done', 'q-progress', 'q-timer', 'sound', 'zoom-in', 'zoom-out', 'zoom-reset', 'res-score',
   'res-time', 'res-districts', 'res-history', 'btn-retry-errors', 'btn-study', 'btn-mode-sd', 'btn-mode-ds',
-  'btn-errors', 'btn-reset', 'btn-again', 'strict'].forEach((id) => { els[id] = makeEl(id); });
+  'btn-errors', 'btn-reset', 'btn-again', 'strict', 'theme', 'btn-print', 'print-list', 'btn-mode-nb'].forEach((id) => { els[id] = makeEl(id); });
 els.strict.checked = false;
+els.theme.checked = false;
 els.sound.checked = true;
 
 const svgPaths = SUBJECTS.map((s) => {
@@ -346,4 +347,114 @@ console.log('smoke.test.js: OK (история: запись, кап 20, пос�
 }
 
 console.log('smoke.test.js: OK (пауза при скрытой вкладке)');
+
+// --- Таск 04, smoke: легенда-список (R01.2, история 2) ---
+// Из спеки: клик по району в легенде в «Изучении» открывает список субъектов,
+// клик по названию подсвечивает контур; в игре легенда списков не открывает.
+fire(els['btn-study'], 'click');
+assert.equal(els['screen-study'].hidden, false, 'изучение открыто');
+fire(els.legend.children[0], 'click');
+assert.equal(els['legend-list'].children.length, 13, 'Центральный район: 13 субъектов списком');
+{
+  const b0 = els['legend-list'].children[0];
+  const s0 = GEO.SUBJECTS.find((s) => s.svgId === b0.dataset.svgId);
+  assert.ok(s0 && s0.district === 'central', 'список — субъекты кликнутого района');
+  fire(b0, 'click');
+  assert.ok(svgPaths[GEO.SUBJECTS.indexOf(s0)].classList.contains('active-q'), 'клик по названию подсветил контур');
+}
+fire(els['btn-mode-sd'], 'click');
+{
+  const n0 = els['legend-list'].children.length;
+  fire(els.legend.children[1], 'click');
+  assert.equal(els['legend-list'].children.length, n0, 'в игре легенда списков не открывает');
+}
+fire(els['btn-finish'], 'click');
+
+console.log('smoke.test.js: OK (легенда-список: открыт, подсветка, в игре молчит)');
+
+// --- Таск 04, smoke: контрастная тема (R01.6, история 6) ---
+// Из спеки: переключатель, выбор запоминается, карта в игре нейтральна в обеих темах.
+els.theme.checked = true;
+fire(els.theme, 'change');
+assert.equal(JSON.parse(store['geo-trainer-v1']).theme, 'contrast', 'тема запомнена');
+fire(els['btn-mode-sd'], 'click');
+assert.ok(svgPaths.every((p) => p.style.fill === NEUTRAL), 'карта в игре нейтральна и в контрастной теме');
+fire(els['btn-finish'], 'click');
+els.theme.checked = false;
+fire(els.theme, 'change');
+assert.equal(JSON.parse(store['geo-trainer-v1']).theme, 'light', 'возврат к обычной теме запомнен');
+
+console.log('smoke.test.js: OK (тема: переключатель, память, нейтральная карта в игре)');
+
+// --- Таск 04, smoke: печать состава (R01.4, история 4) ---
+// Из спеки: кнопка «Печать», печатная версия — районы и списки (карта-игры нет).
+assert.ok(html.includes('@media print'), 'печатный CSS в сборке');
+function texts(el) {
+  let out = [el.textContent || ''];
+  el.children.forEach((c) => { out.push(texts(c)); });
+  return out.join(' ');
+}
+assert.equal(els['print-list'].children.length, 12, 'печатный состав: 12 районов');
+assert.ok(texts(els['print-list']).includes('Центральный'), 'печатный состав: названия районов');
+assert.ok(texts(els['print-list']).includes('Москва'), 'печатный состав: названия субъектов');
+{
+  let printed = 0;
+  global.window.print = () => { printed++; };
+  fire(els['btn-print'], 'click');
+  assert.equal(printed, 1, 'кнопка «Печать» печатает');
+}
+
+console.log('smoke.test.js: OK (печать: кнопка, 12 районов со списками)');
+
+// --- Таск 04, smoke: режим «соседи» (R01.5, история 5) ---
+// Из спеки: называют субъект — кликаем граничащих; вопрос только по регионам
+// с ≥1 соседом (без соседей — Калининград и Сахалин — не выпадают).
+function nbSubject() {
+  const w = GEO.SUBJECTS.find((s) => els['q-title'].textContent.includes(s.name));
+  assert.ok(w, 'вопрос про известный субъект');
+  return w;
+}
+fire(els['btn-mode-nb'], 'click');
+assert.equal(els['screen-game'].hidden, false, 'режим соседей стартовал');
+assert.match(els['q-title'].textContent, /сосед/i, 'вопрос про соседей');
+{
+  const w = nbSubject();
+  assert.ok((GEO.NEIGHBORS[w.svgId] || []).length >= 1, 'у субъекта есть соседи');
+}
+for (let t = 0; t < 15; t++) {
+  fire(els['btn-mode-nb'], 'click');
+  const w = nbSubject();
+  assert.ok(!['RU-KGD', 'RU-SAK'].includes(w.svgId), 'регион без соседей не выпадает');
+}
+{
+  let w = null;
+  for (let t = 0; t < 20; t++) {
+    fire(els['btn-mode-nb'], 'click');
+    w = nbSubject();
+    if ((GEO.NEIGHBORS[w.svgId] || []).length > 1) break;
+  }
+  const nbs = GEO.NEIGHBORS[w.svgId];
+  assert.ok(nbs.length > 1, 'нашёлся субъект с 2+ соседями');
+  nbs.forEach((id) => {
+    fire(svg, 'click', { target: svgPaths[GEO.SUBJECTS.findIndex((s) => s.svgId === id)] });
+  });
+  fire(els['btn-done'], 'click');
+  assert.match(els['q-msg'].textContent, /Верно/, 'все соседи найдены: ' + els['q-msg'].textContent);
+}
+{
+  let w = null;
+  for (let t = 0; t < 20; t++) {
+    fire(els['btn-mode-nb'], 'click');
+    w = nbSubject();
+    if ((GEO.NEIGHBORS[w.svgId] || []).length > 1) break;
+  }
+  const first = GEO.NEIGHBORS[w.svgId][0];
+  fire(svg, 'click', { target: svgPaths[GEO.SUBJECTS.findIndex((s) => s.svgId === first)] });
+  fire(els['btn-done'], 'click');
+  assert.match(els['q-msg'].textContent, /Пропущены/, 'пропуски перечислены: ' + els['q-msg'].textContent);
+}
+fire(els['btn-finish'], 'click');
+assert.equal(els['screen-result'].hidden, false, 'финал после соседей');
+
+console.log('smoke.test.js: OK (соседи: клик+Готово, разбор, без соседей не выпадают)');
 

@@ -62,6 +62,32 @@
     SOUND.play(SOUND.soundFor(event));
   }
 
+  // Контрастная тема (R01.6): переключатель, выбор — в store.theme.
+  // Ключ создаётся только явным переключением, чтобы молчаливое состояние
+  // совпадало со старым хранилищем. Заливки ставит paint*, тема их не трогает.
+  function applyTheme() {
+    var t = store.theme || 'light';
+    var box = document.getElementById('theme');
+    if (box && typeof box.checked === 'boolean') box.checked = (t === 'contrast');
+    try {
+      if (document.body && document.body.classList) {
+        if (t === 'contrast') document.body.classList.add('contrast');
+        else document.body.classList.remove('contrast');
+      }
+    } catch (e) {
+      // Сбой применения темы не глотаем: откат на светлую по умолчанию,
+      // это же состояние — в хранилище и в чекбокс.
+      store.theme = 'light';
+      saveStore();
+      if (box && typeof box.checked === 'boolean') box.checked = false;
+    }
+  }
+  function setTheme(name) {
+    store.theme = (name === 'contrast') ? 'contrast' : 'light';
+    saveStore();
+    applyTheme();
+  }
+
   var svg = document.getElementById('map');
   var tip = document.getElementById('tip');
   var NEUTRAL = '#cfd8e3';
@@ -157,6 +183,24 @@
 
   // Легенда
   var legend = document.getElementById('legend');
+  var legendList = document.getElementById('legend-list');
+  function renderLegendList(districtId) {
+    legendList.innerHTML = '';
+    (byDistrict[districtId] || []).forEach(function (s) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'legend-subject';
+      b.dataset.svgId = s.svgId;
+      b.textContent = s.name;
+      b.addEventListener('click', function () {
+        if (!document.getElementById('screen-study').hidden && paths[s.svgId]) {
+          dimAllExcept([s.svgId]);
+          paths[s.svgId].classList.add('active-q');
+        }
+      });
+      legendList.appendChild(b);
+    });
+  }
   DISTRICTS.forEach(function (d, i) {
     var b = document.createElement('button');
     b.type = 'button';
@@ -172,6 +216,7 @@
     b.addEventListener('click', function () {
       if (!document.getElementById('screen-study').hidden) {
         dimAllExcept(byDistrict[d.id].map(function (s) { return s.svgId; }));
+        renderLegendList(d.id);
       }
     });
     legend.appendChild(b);
@@ -187,6 +232,32 @@
     b.innerHTML = '<span class="chip" style="background:' + d.color + '"></span>' +
       '<span class="num">' + (i + 1) + '</span> ' + d.name;
     dBtns.appendChild(b);
+  });
+
+  // Печать состава (R01.4): районы и списки субъектов, без карты-игры.
+  // Заголовок — статикой в template; сюда — 12 разделов со списками.
+  (function buildPrint() {
+    var pl = document.getElementById('print-list');
+    pl.innerHTML = '';
+    DISTRICTS.forEach(function (d) {
+      var sec = document.createElement('div');
+      sec.className = 'print-district';
+      var h = document.createElement('h3');
+      h.textContent = d.name;
+      sec.appendChild(h);
+      var ul = document.createElement('ul');
+      (byDistrict[d.id] || []).forEach(function (s) {
+        var li = document.createElement('li');
+        li.textContent = s.name;
+        ul.appendChild(li);
+      });
+      sec.appendChild(ul);
+      pl.appendChild(sec);
+    });
+  })();
+  document.getElementById('btn-print').addEventListener('click', function () {
+    sfx('click');
+    if (typeof window !== 'undefined' && typeof window.print === 'function') window.print();
   });
 
   var G = null; // состояние игры
@@ -230,7 +301,9 @@
     var strict = document.getElementById('strict').checked;
     var n = mode === 'district-subjects' ? 6 : 10;
     var pool = mode === 'subject-district' ? SUBJECTS : DISTRICTS;
-    var qs = QUIZ.buildRound(mode, SUBJECTS, DISTRICTS, n, Math.random);
+    // R01.1: слабые районы спрашивают чаще — веса из статистики ответов.
+    var qs = QUIZ.buildRound(mode, SUBJECTS, DISTRICTS, n, Math.random,
+      QUIZ.weightsFromStats(store.asked, store.ok));
     if (!qs.length) return;
     newGame(mode, qs, strict);
   }
@@ -244,10 +317,32 @@
         var d = DISTRICTS.filter(function (x) { return x.id === e.district; })[0];
         if (d) qs.push({ kind: 'mixed-district', district: d,
           members: (byDistrict[d.id] || []).map(function (s) { return s.svgId; }) });
+      } else if (e.mode === 'neighbors' && bySvg[e.svgId] &&
+          DATA.NEIGHBORS[e.svgId] && DATA.NEIGHBORS[e.svgId].length) {
+        qs.push({ kind: 'neighbors', subject: bySvg[e.svgId],
+          neighbors: DATA.NEIGHBORS[e.svgId].slice() });
       }
     });
     if (!qs.length) return;
     newGame('errors', qs, strict);
+  }
+
+  // Режим «соседи» (R01.5): вопросы — только QUIZ.neighborQuestion,
+  // регионы без соседей отсекает само ядро. 6 вопросов, без повторов субъекта.
+  function startNeighbors() {
+    var strict = document.getElementById('strict').checked;
+    var qs = [], guard = 0;
+    while (qs.length < 6 && guard++ < 200) {
+      var q = QUIZ.neighborQuestion(SUBJECTS, DATA.NEIGHBORS, Math.random);
+      if (q && qs.every(function (x) { return x.subject.svgId !== q.subject.svgId; })) qs.push(q);
+    }
+    if (!qs.length) return;
+    newGame('neighbors', qs, strict);
+  }
+  // Цели вопроса для кликов по карте: район — members, соседи — neighbors.
+  function qMembers(q) { return q.kind === 'neighbors' ? q.neighbors : q.members; }
+  function qDistrictId(q) {
+    return q.kind === 'neighbors' ? q.subject.district : q.district.id;
   }
 
   var qTitle = document.getElementById('q-title');
@@ -268,12 +363,19 @@
     qMsg.textContent = '';
     paintNeutral();
     btnDone.hidden = true;
-    btnHint.hidden = G.strict || q.kind === 'district-subjects';
-    dBtns.style.display = (q.kind === 'district-subjects') ? 'none' : '';
+    btnHint.hidden = G.strict || q.kind !== 'subject-district';
+    dBtns.style.display = (q.kind === 'subject-district') ? '' : 'none';
     progress.textContent = 'Вопрос ' + (G.i + 1) + ' из ' + G.questions.length + ' · Счёт ' + G.score;
     if (q.kind === 'subject-district' || (G.mode === 'errors' && q.kind === 'subject-district')) {
       qTitle.textContent = 'Какой экономический район: ' + q.subject.name + '?';
       qHint.textContent = 'Подсказка: регион подсвечен на карте.';
+      dimAllExcept([q.subject.svgId]);
+      paths[q.subject.svgId].classList.add('active-q');
+    } else if (q.kind === 'neighbors') {
+      qTitle.textContent = 'Кто соседи: кликни регионы, граничащие с «' + q.subject.name +
+        '» (' + q.neighbors.length + ')';
+      qHint.textContent = 'Кликай соседей на карте, затем «Готово».';
+      btnDone.hidden = false;
       dimAllExcept([q.subject.svgId]);
       paths[q.subject.svgId].classList.add('active-q');
     } else {
@@ -324,10 +426,10 @@
   function onPickSvg(id) {
     if (!G) return;
     var q = curQ();
-    if (q.kind !== 'district-subjects' && q.kind !== 'mixed-district') return;
+    if (q.kind !== 'district-subjects' && q.kind !== 'mixed-district' && q.kind !== 'neighbors') return;
     if (G.picked.indexOf(id) !== -1) return; // повтор не ошибка
     var r = QUIZ.checkDistrictAnswer(
-      { members: q.members }, G.picked.concat([id]));
+      { members: qMembers(q) }, G.picked.concat([id]));
     if (r.extra.length) {
       paths[id].classList.add('bad');
       setTimeout(function () { paths[id].classList.remove('bad'); }, 600);
@@ -336,7 +438,7 @@
     } else {
       G.picked.push(id);
       paths[id].classList.add('good');
-      var left = q.members.length - G.picked.length;
+      var left = qMembers(q).length - G.picked.length;
       qMsg.textContent = left ? 'Осталось найти: ' + left + '.' : 'Всё найдено! Жми «Готово».';
     }
   }
@@ -358,20 +460,23 @@
   btnDone.addEventListener('click', function () {
     if (!G) return;
     var q = curQ();
-    var r = QUIZ.checkDistrictAnswer({ members: q.members }, G.picked);
+    var members = qMembers(q);
+    var r = QUIZ.checkDistrictAnswer({ members: members }, G.picked);
     var ok = r.complete;
     if (ok) G.score += 2;
-    q.members.forEach(function (id) {
+    members.forEach(function (id) {
       if (paths[id]) paths[id].classList.add(r.missing.indexOf(id) === -1 ? 'good' : 'bad');
     });
-    recordResult(q.district.id, ok);
-    if (!ok) pushError({ mode: 'district-subjects', district: q.district.id });
+    recordResult(qDistrictId(q), ok);
+    if (!ok) pushError(q.kind === 'neighbors'
+      ? { mode: 'neighbors', svgId: q.subject.svgId }
+      : { mode: 'district-subjects', district: q.district.id });
     sfx(ok ? 'correct' : 'wrong');
     qMsg.textContent = ok
       ? 'Верно! Все ' + r.total + ' найдены.'
       : 'Найдено ' + r.found + ' из ' + r.total + '. Пропущены: ' +
         r.missing.map(function (id) { return bySvg[id].name; }).join(', ') + '.';
-    if (!G.strict) dimAllExcept(q.members);
+    if (!G.strict) dimAllExcept(members);
     setTimeout(next, 2200);
   });
 
@@ -386,11 +491,13 @@
   btnGiveup.addEventListener('click', function () {
     if (!G) return;
     var q = curQ();
-    var d = q.kind === 'subject-district' ? q.subject.district : q.district.id;
+    var d = q.kind === 'subject-district' ? q.subject.district : qDistrictId(q);
     recordResult(d, false);
     pushError(q.kind === 'subject-district'
       ? { mode: 'subject-district', svgId: q.subject.svgId }
-      : { mode: 'district-subjects', district: q.district.id });
+      : (q.kind === 'neighbors'
+        ? { mode: 'neighbors', svgId: q.subject.svgId }
+        : { mode: 'district-subjects', district: q.district.id }));
     next();
   });
   btnFinish.addEventListener('click', function () { finish(); });
@@ -442,13 +549,15 @@
   });
   document.getElementById('btn-mode-sd').addEventListener('click', function () { startMode('subject-district'); });
   document.getElementById('btn-mode-ds').addEventListener('click', function () { startMode('district-subjects'); });
+  document.getElementById('btn-mode-nb').addEventListener('click', startNeighbors);
   document.getElementById('btn-errors').addEventListener('click', startErrors);
   document.getElementById('btn-retry-errors').addEventListener('click', function () {
     show('home'); startErrors();
   });
   document.getElementById('btn-reset').addEventListener('click', function () {
-    var sound = store.sound;
+    var sound = store.sound, th = store.theme;
     store = { ok: {}, asked: {}, errors: [], history: [], sound: sound };
+    if (th) store.theme = th;
     saveStore();
     refreshHome();
   });
@@ -474,5 +583,11 @@
     saveStore();
     if (soundBox.checked) sfx('click');
   });
+  var themeBox = document.getElementById('theme');
+  themeBox.addEventListener('change', function () {
+    setTheme(themeBox.checked ? 'contrast' : 'light');
+    if (store.sound !== false) sfx('click');
+  });
+  applyTheme();
   show('home');
 })();

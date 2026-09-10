@@ -34,6 +34,7 @@
       <button class="btn" id="btn-study" type="button">Изучение карты</button>
       <button class="btn" id="btn-mode-sd" type="button">Субъект → район</button>
       <button class="btn" id="btn-mode-ds" type="button">Район → субъекты</button>
+      <button class="btn" id="btn-mode-nb" type="button">Соседи</button>
       <button class="btn secondary" id="btn-errors" type="button" hidden>Повторить ошибки</button>
     </div>
     <div>
@@ -42,14 +43,19 @@
     <div>
       <label class="strict"><input type="checkbox" id="sound" checked> Звук</label>
     </div>
+    <div>
+      <label class="strict"><input type="checkbox" id="theme"> Контрастная тема (для проектора)</label>
+    </div>
     <div class="btn-row">
       <button class="btn secondary" id="btn-reset" type="button">Сбросить прогресс</button>
+      <button class="btn secondary" id="btn-print" type="button">Печать состава</button>
     </div>
     <p class="note">Прогресс хранится в этом браузере. 4 новых региона (ДНР, ЛНР,
     Запорожская и Херсонская области) показаны схематичными контурами.</p>
   </section>
 
   <div id="legend" aria-label="Легенда районов"></div>
+  <div id="legend-list" aria-live="polite"></div>
 
   <section id="screen-study" class="panel" hidden>
     <h2>Изучение</h2>
@@ -85,6 +91,10 @@
       <button class="btn" id="btn-retry-errors" type="button" hidden>Повторить ошибки</button>
       <button class="btn secondary" id="btn-again" type="button">На главную</button>
     </div>
+  </section>
+
+  <section id="print-list" hidden aria-label="Состав районов для печати">
+    <h2>Состав экономических районов</h2>
   </section>
 
   <footer>

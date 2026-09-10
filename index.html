@@ -47,6 +47,15 @@ main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 40px; }
   display: inline-flex; align-items: center; gap: 6px;
 }
 .legend-item:hover, .district-btn:hover { border-color: #333; }
+#legend-list {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px;
+}
+#legend-list:empty { display: none; }
+.legend-subject {
+  border: 1px solid #bbb; background: #fff; border-radius: 6px;
+  padding: 4px 10px; font-size: 13px; cursor: pointer;
+}
+.legend-subject:hover { border-color: #333; }
 .district-btn.tried { border-color: #d1242f; background: #fde8e9; }
 .chip { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.3); }
 .num {
@@ -64,11 +73,34 @@ main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 40px; }
 #q-title { font-size: 18px; font-weight: 600; }
 #q-msg { min-height: 24px; font-weight: 600; margin-top: 8px; }
 #q-progress { color: #555; font-size: 13px; }
+#q-timer { color: #1f3a5f; font-size: 13px; font-variant-numeric: tabular-nums; }
+#res-history { padding-left: 20px; }
+#res-history li { margin-bottom: 2px; }
 #res-districts { columns: 2; padding-left: 20px; }
 #res-districts li { margin-bottom: 4px; list-style: none; margin-left: -20px; }
 .note { font-size: 13px; color: #555; }
 footer { font-size: 12px; color: #777; margin-top: 16px; }
 label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 0; }
+/* Контрастная тема для проектора (R01.6): тёмный фон, толстые контуры.
+ * Заливки контуров задаёт приложение инлайн (study — цвета районов,
+ * игра — нейтральный), тема их не перекрывает. */
+body.contrast { background: #111; color: #f2f2f2; }
+body.contrast header { background: #000; }
+body.contrast .panel { background: #1c1c1c; color: #f2f2f2; }
+body.contrast .note, body.contrast #q-progress, body.contrast #q-timer { color: #ddd; }
+body.contrast #map path { stroke: #000; stroke-width: 2; }
+body.contrast #map path.good { stroke: #2ea043; stroke-width: 3.5; }
+body.contrast #map path.bad { stroke: #ff7b72; stroke-width: 3.5; }
+body.contrast #map path.active-q { stroke: #fff; stroke-width: 3; }
+body.contrast .legend-item, body.contrast .district-btn, body.contrast .legend-subject { background: #222; color: #fff; border-color: #888; }
+#print-list { display: none; }
+/* Печать состава (R01.4): только районы и списки субъектов, карта-игры нет. */
+@media print {
+  .map-wrap, #legend, #legend-list, #tip, #screen-home, #screen-study,
+  #screen-game, #screen-result, footer { display: none !important; }
+  #print-list { display: block !important; }
+  body { background: #fff; color: #000; }
+}
 @media (max-width: 640px) {
   #res-districts { columns: 1; }
   header h1 { font-size: 17px; }
@@ -188,19 +220,28 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
       <button class="btn" id="btn-study" type="button">Изучение карты</button>
       <button class="btn" id="btn-mode-sd" type="button">Субъект → район</button>
       <button class="btn" id="btn-mode-ds" type="button">Район → субъекты</button>
+      <button class="btn" id="btn-mode-nb" type="button">Соседи</button>
       <button class="btn secondary" id="btn-errors" type="button" hidden>Повторить ошибки</button>
     </div>
     <div>
       <label class="strict"><input type="checkbox" id="strict"> Строгий режим («Профессор»): без подсказок</label>
     </div>
+    <div>
+      <label class="strict"><input type="checkbox" id="sound" checked> Звук</label>
+    </div>
+    <div>
+      <label class="strict"><input type="checkbox" id="theme"> Контрастная тема (для проектора)</label>
+    </div>
     <div class="btn-row">
       <button class="btn secondary" id="btn-reset" type="button">Сбросить прогресс</button>
+      <button class="btn secondary" id="btn-print" type="button">Печать состава</button>
     </div>
     <p class="note">Прогресс хранится в этом браузере. 4 новых региона (ДНР, ЛНР,
     Запорожская и Херсонская области) показаны схематичными контурами.</p>
   </section>
 
   <div id="legend" aria-label="Легенда районов"></div>
+  <div id="legend-list" aria-live="polite"></div>
 
   <section id="screen-study" class="panel" hidden>
     <h2>Изучение</h2>
@@ -211,6 +252,7 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
 
   <section id="screen-game" class="panel" hidden>
     <div id="q-progress"></div>
+    <div id="q-timer" role="timer"></div>
     <div id="q-title"></div>
     <p id="q-hint" class="note"></p>
     <div id="district-btns"></div>
@@ -226,12 +268,19 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   <section id="screen-result" class="panel" hidden>
     <h2>Результат</h2>
     <p id="res-score"></p>
+    <p id="res-time" class="note"></p>
+    <h3>Последние игры</h3>
+    <ul id="res-history"></ul>
     <h3>По районам (за всё время)</h3>
     <ul id="res-districts"></ul>
     <div class="btn-row">
       <button class="btn" id="btn-retry-errors" type="button" hidden>Повторить ошибки</button>
       <button class="btn secondary" id="btn-again" type="button">На главную</button>
     </div>
+  </section>
+
+  <section id="print-list" hidden aria-label="Состав районов для печати">
+    <h2>Состав экономических районов</h2>
   </section>
 
   <footer>
@@ -366,7 +415,107 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
       schematic: r[0] === 'RU-DNR' || r[0] === 'RU-LNR' || r[0] === 'RU-ZAP' || r[0] === 'RU-KHE'
     };
   });
-  return { DISTRICTS: DISTRICTS, SUBJECTS: SUBJECTS };
+  /* NEIGHBORS: соседство для режима «соседи» (R01.5), {svgId: [svgId...]}.
+   * Геометрия — разовым скриптом tools/build_neighbors.py из vendor/map.svg
+   * (min-дистанция сегментов, EPS=0.5); города-анклавы MOW/SPE/SEV связаны
+   * только с хозяином (MOS/LEN/CR).
+   * Ручные рёбра (4 схематичных региона без геометрии + Крым):
+   * ДНР <-> ЛНР, Ростовская, Запорожская; ЛНР <-> ДНР, Ростовская,
+   * Воронежская, Белгородская;
+   * Запорожская <-> ДНР, Херсонская; Херсонская <-> Запорожская, Крым.
+   * RU-KGD и RU-SAK без соседей (эксклав/остров) — в матрице их нет,
+   * в вопросах режима не участвуют.
+   */
+  var NEIGHBORS = {
+    'RU-AD': ['RU-KDA'],
+    'RU-AL': ['RU-ALT', 'RU-KEM', 'RU-KK', 'RU-TY'],
+    'RU-ALT': ['RU-AL', 'RU-KEM', 'RU-NVS'],
+    'RU-AMU': ['RU-KHA', 'RU-SA', 'RU-YEV', 'RU-ZAB'],
+    'RU-ARK': ['RU-KIR', 'RU-KO', 'RU-KR', 'RU-NEN', 'RU-VLG'],
+    'RU-AST': ['RU-KL', 'RU-VGG'],
+    'RU-BA': ['RU-CHE', 'RU-ORE', 'RU-PER', 'RU-SVE', 'RU-TA', 'RU-UD'],
+    'RU-BEL': ['RU-KRS', 'RU-LNR', 'RU-VOR'],
+    'RU-BRY': ['RU-KLU', 'RU-KRS', 'RU-ORL', 'RU-SMO'],
+    'RU-BU': ['RU-IRK', 'RU-TY', 'RU-ZAB'],
+    'RU-CE': ['RU-DA', 'RU-IN', 'RU-SE', 'RU-STA'],
+    'RU-CHE': ['RU-BA', 'RU-KGN', 'RU-ORE', 'RU-SVE'],
+    'RU-CHU': ['RU-KAM', 'RU-MAG', 'RU-SA'],
+    'RU-CR': ['RU-KHE', 'RU-SEV'],
+    'RU-CU': ['RU-ME', 'RU-MO', 'RU-NIZ', 'RU-TA', 'RU-ULY'],
+    'RU-DA': ['RU-CE', 'RU-KL', 'RU-STA'],
+    'RU-DNR': ['RU-LNR', 'RU-ROS', 'RU-ZAP'],
+    'RU-IN': ['RU-CE', 'RU-SE'],
+    'RU-IRK': ['RU-BU', 'RU-KYA', 'RU-SA', 'RU-TY', 'RU-ZAB'],
+    'RU-IVA': ['RU-KOS', 'RU-NIZ', 'RU-VLA', 'RU-YAR'],
+    'RU-KAM': ['RU-CHU', 'RU-MAG'],
+    'RU-KB': ['RU-KC', 'RU-SE', 'RU-STA'],
+    'RU-KC': ['RU-KB', 'RU-KDA', 'RU-STA'],
+    'RU-KDA': ['RU-AD', 'RU-KC', 'RU-ROS', 'RU-STA'],
+    'RU-KEM': ['RU-AL', 'RU-ALT', 'RU-KK', 'RU-KYA', 'RU-NVS', 'RU-TOM'],
+    'RU-KGN': ['RU-CHE', 'RU-SVE', 'RU-TYU'],
+    'RU-KHA': ['RU-AMU', 'RU-MAG', 'RU-PRI', 'RU-SA', 'RU-YEV'],
+    'RU-KHE': ['RU-CR', 'RU-ZAP'],
+    'RU-KHM': ['RU-KO', 'RU-KYA', 'RU-OMS', 'RU-SVE', 'RU-TOM', 'RU-TYU', 'RU-YAN'],
+    'RU-KIR': ['RU-ARK', 'RU-KO', 'RU-KOS', 'RU-ME', 'RU-NIZ', 'RU-PER', 'RU-TA', 'RU-UD', 'RU-VLG'],
+    'RU-KK': ['RU-AL', 'RU-KEM', 'RU-KYA', 'RU-TY'],
+    'RU-KL': ['RU-AST', 'RU-DA', 'RU-ROS', 'RU-STA', 'RU-VGG'],
+    'RU-KLU': ['RU-BRY', 'RU-MOS', 'RU-ORL', 'RU-SMO', 'RU-TUL'],
+    'RU-KO': ['RU-ARK', 'RU-KHM', 'RU-KIR', 'RU-NEN', 'RU-PER', 'RU-SVE', 'RU-YAN'],
+    'RU-KOS': ['RU-IVA', 'RU-KIR', 'RU-NIZ', 'RU-VLG', 'RU-YAR'],
+    'RU-KR': ['RU-ARK', 'RU-LEN', 'RU-MUR', 'RU-VLG'],
+    'RU-KRS': ['RU-BEL', 'RU-BRY', 'RU-LIP', 'RU-ORL', 'RU-VOR'],
+    'RU-KYA': ['RU-IRK', 'RU-KEM', 'RU-KHM', 'RU-KK', 'RU-SA', 'RU-TOM', 'RU-TY', 'RU-YAN'],
+    'RU-LEN': ['RU-KR', 'RU-NGR', 'RU-PSK', 'RU-SPE', 'RU-VLG'],
+    'RU-LIP': ['RU-KRS', 'RU-ORL', 'RU-RYA', 'RU-TAM', 'RU-TUL', 'RU-VOR'],
+    'RU-LNR': ['RU-BEL', 'RU-DNR', 'RU-ROS', 'RU-VOR'],
+    'RU-MAG': ['RU-CHU', 'RU-KAM', 'RU-KHA', 'RU-SA'],
+    'RU-ME': ['RU-CU', 'RU-KIR', 'RU-NIZ', 'RU-TA'],
+    'RU-MO': ['RU-CU', 'RU-NIZ', 'RU-PNZ', 'RU-RYA', 'RU-ULY'],
+    'RU-MOS': ['RU-KLU', 'RU-MOW', 'RU-RYA', 'RU-SMO', 'RU-TUL', 'RU-TVE', 'RU-VLA', 'RU-YAR'],
+    'RU-MOW': ['RU-MOS'],
+    'RU-MUR': ['RU-KR'],
+    'RU-NEN': ['RU-ARK', 'RU-KO', 'RU-YAN'],
+    'RU-NGR': ['RU-LEN', 'RU-PSK', 'RU-TVE', 'RU-VLG'],
+    'RU-NIZ': ['RU-CU', 'RU-IVA', 'RU-KIR', 'RU-KOS', 'RU-ME', 'RU-MO', 'RU-RYA', 'RU-VLA'],
+    'RU-NVS': ['RU-ALT', 'RU-KEM', 'RU-OMS', 'RU-TOM'],
+    'RU-OMS': ['RU-KHM', 'RU-NVS', 'RU-TOM', 'RU-TYU'],
+    'RU-ORE': ['RU-BA', 'RU-CHE', 'RU-SAM', 'RU-SAR', 'RU-TA'],
+    'RU-ORL': ['RU-BRY', 'RU-KLU', 'RU-KRS', 'RU-LIP', 'RU-TUL'],
+    'RU-PER': ['RU-BA', 'RU-KIR', 'RU-KO', 'RU-SVE', 'RU-UD'],
+    'RU-PNZ': ['RU-MO', 'RU-RYA', 'RU-SAR', 'RU-TAM', 'RU-ULY'],
+    'RU-PRI': ['RU-KHA'],
+    'RU-PSK': ['RU-LEN', 'RU-NGR', 'RU-SMO', 'RU-TVE'],
+    'RU-ROS': ['RU-DNR', 'RU-KDA', 'RU-KL', 'RU-LNR', 'RU-STA', 'RU-VGG', 'RU-VOR'],
+    'RU-RYA': ['RU-LIP', 'RU-MO', 'RU-MOS', 'RU-NIZ', 'RU-PNZ', 'RU-TAM', 'RU-TUL', 'RU-VLA'],
+    'RU-SA': ['RU-AMU', 'RU-CHU', 'RU-IRK', 'RU-KHA', 'RU-KYA', 'RU-MAG', 'RU-ZAB'],
+    'RU-SAM': ['RU-ORE', 'RU-SAR', 'RU-TA', 'RU-ULY'],
+    'RU-SAR': ['RU-ORE', 'RU-PNZ', 'RU-SAM', 'RU-TAM', 'RU-ULY', 'RU-VGG', 'RU-VOR'],
+    'RU-SE': ['RU-CE', 'RU-IN', 'RU-KB', 'RU-STA'],
+    'RU-SEV': ['RU-CR'],
+    'RU-SMO': ['RU-BRY', 'RU-KLU', 'RU-MOS', 'RU-PSK', 'RU-TVE'],
+    'RU-SPE': ['RU-LEN'],
+    'RU-STA': ['RU-CE', 'RU-DA', 'RU-KB', 'RU-KC', 'RU-KDA', 'RU-KL', 'RU-ROS', 'RU-SE'],
+    'RU-SVE': ['RU-BA', 'RU-CHE', 'RU-KGN', 'RU-KHM', 'RU-KO', 'RU-PER', 'RU-TYU'],
+    'RU-TA': ['RU-BA', 'RU-CU', 'RU-KIR', 'RU-ME', 'RU-ORE', 'RU-SAM', 'RU-UD', 'RU-ULY'],
+    'RU-TAM': ['RU-LIP', 'RU-PNZ', 'RU-RYA', 'RU-SAR', 'RU-VOR'],
+    'RU-TOM': ['RU-KEM', 'RU-KHM', 'RU-KYA', 'RU-NVS', 'RU-OMS', 'RU-TYU'],
+    'RU-TUL': ['RU-KLU', 'RU-LIP', 'RU-MOS', 'RU-ORL', 'RU-RYA'],
+    'RU-TVE': ['RU-MOS', 'RU-NGR', 'RU-PSK', 'RU-SMO', 'RU-VLG', 'RU-YAR'],
+    'RU-TY': ['RU-AL', 'RU-BU', 'RU-IRK', 'RU-KK', 'RU-KYA'],
+    'RU-TYU': ['RU-KGN', 'RU-KHM', 'RU-OMS', 'RU-SVE', 'RU-TOM'],
+    'RU-UD': ['RU-BA', 'RU-KIR', 'RU-PER', 'RU-TA'],
+    'RU-ULY': ['RU-CU', 'RU-MO', 'RU-PNZ', 'RU-SAM', 'RU-SAR', 'RU-TA'],
+    'RU-VGG': ['RU-AST', 'RU-KL', 'RU-ROS', 'RU-SAR', 'RU-VOR'],
+    'RU-VLA': ['RU-IVA', 'RU-MOS', 'RU-NIZ', 'RU-RYA', 'RU-YAR'],
+    'RU-VLG': ['RU-ARK', 'RU-KIR', 'RU-KOS', 'RU-KR', 'RU-LEN', 'RU-NGR', 'RU-TVE', 'RU-YAR'],
+    'RU-VOR': ['RU-BEL', 'RU-KRS', 'RU-LIP', 'RU-LNR', 'RU-ROS', 'RU-SAR', 'RU-TAM', 'RU-VGG'],
+    'RU-YAN': ['RU-KHM', 'RU-KO', 'RU-KYA', 'RU-NEN'],
+    'RU-YAR': ['RU-IVA', 'RU-KOS', 'RU-MOS', 'RU-TVE', 'RU-VLA', 'RU-VLG'],
+    'RU-YEV': ['RU-AMU', 'RU-KHA'],
+    'RU-ZAB': ['RU-AMU', 'RU-BU', 'RU-IRK', 'RU-SA'],
+    'RU-ZAP': ['RU-DNR', 'RU-KHE']
+  };
+  return { DISTRICTS: DISTRICTS, SUBJECTS: SUBJECTS, NEIGHBORS: NEIGHBORS };
 }));
 
 </script>
@@ -404,6 +553,32 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
     return arr[Math.floor((rng || Math.random)() * arr.length)];
   }
 
+  // Вес района из % верных (R01.1): 1 − pct/100, пол 0.1,
+  // чтобы район со 100% всё равно иногда выпадал. pct: 0..100.
+  function weightFor(pct) {
+    if (typeof pct !== 'number' || isNaN(pct)) return 1;
+    if (pct <= 0) return 1;
+    if (pct >= 100) return 0.1;
+    var w = 1 - pct / 100;
+    return w < 0.1 ? 0.1 : w;
+  }
+
+  // Веса районов из статистики ответов (R01.1): % верных каждого района
+  // через weightFor; район без статистики в карту не попадает —
+  // buildRound даёт отсутствующему весу значение по умолчанию (1).
+  function weightsFromStats(asked, ok) {
+    asked = asked || {};
+    ok = ok || {};
+    var out = {};
+    Object.keys(asked).concat(Object.keys(ok)).forEach(function (id) {
+      if (out.hasOwnProperty(id)) return;
+      var a = asked[id], o = ok[id];
+      var pct = (typeof a === 'number' && a > 0 && typeof o === 'number') ? 100 * o / a : NaN;
+      out[id] = weightFor(pct);
+    });
+    return out;
+  }
+
   // Вопрос «субъект → район»: какой район у этого субъекта.
   // Варианты не фиксируем — приложение показывает все 12 районов.
   function subjectQuestion(subjects, rng) {
@@ -439,14 +614,75 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
       complete: missing.length === 0 && extra.length === 0 };
   }
 
+  // Бонус за скорость (R04.1): +1 только за верный с 1-й попытки
+  // быстрее 8 с без подсказки, иначе 0.
+  function bonusFor(a) {
+    a = a || {};
+    if (a.attempt !== 1) return 0;
+    if (a.hinted) return 0;
+    if (typeof a.seconds !== 'number' || isNaN(a.seconds)) return 0;
+    return a.seconds < 8 ? 1 : 0;
+  }
+
+  // Вопрос «соседи» (R01.5): субъект с ≥1 соседом + множество соседей.
+  // neighbors — матрица таска 01 {svgId: [svgId...]}; регионы без соседей
+  // (нет ключа или пустой список) в вопрос не попадают.
+  function neighborQuestion(subjects, neighbors, rng) {
+    var eligible = subjects.filter(function (s) {
+      return neighbors && neighbors[s.svgId] && neighbors[s.svgId].length > 0;
+    });
+    if (eligible.length === 0) return null;
+    var subject = pick(eligible, rng);
+    return { kind: 'neighbors', subject: subject, neighbors: neighbors[subject.svgId].slice() };
+  }
+
+  // Взвешенная выборка без повторов: вероятность взять элемент
+  // пропорциональна его весу. Детерминирована при том же rng.
+  function weightedSample(items, weightOf, rng) {
+    var rest = items.slice(), out = [], total, x, acc, k, idx;
+    while (rest.length > 0) {
+      total = 0;
+      for (k = 0; k < rest.length; k++) total += weightOf(rest[k]);
+      x = rng() * total;
+      acc = 0; idx = rest.length - 1;
+      for (k = 0; k < rest.length; k++) {
+        acc += weightOf(rest[k]);
+        if (x < acc) { idx = k; break; }
+      }
+      out.push(rest[idx]);
+      rest.splice(idx, 1);
+    }
+    return out;
+  }
+
+  function weightOfKey(weights, key) {
+    var w = weights ? weights[key] : undefined;
+    return (typeof w === 'number' && !isNaN(w) && w > 0) ? w : 1;
+  }
+
   // Набор вопросов на игру: n случайных, без повторов субъекта/района.
-  function buildRound(mode, subjects, districts, n, rng) {
-    var pool = shuffle(mode === 'subject-district' ? subjects : districts, rng);
+  // weights (опционально): {districtId: weight} — слабые районы выпадают чаще.
+  // В режиме subject-district вес субъекта = вес его района.
+  function buildRound(mode, subjects, districts, n, rng, weights) {
+    var r = rng || Math.random, pool;
+    if (weights && typeof weights === 'object') {
+      if (mode === 'subject-district') {
+        pool = weightedSample(subjects, function (s) {
+          return weightOfKey(weights, s.district);
+        }, r);
+      } else {
+        pool = weightedSample(districts, function (d) {
+          return weightOfKey(weights, d.id);
+        }, r);
+      }
+    } else {
+      pool = shuffle(mode === 'subject-district' ? subjects : districts, r);
+    }
     var out = [], i;
     for (i = 0; i < Math.min(n, pool.length); i++) {
       out.push(mode === 'subject-district'
-        ? subjectQuestion([pool[i]], rng)
-        : districtQuestion(subjects, [pool[i]], rng));
+        ? subjectQuestion([pool[i]], r)
+        : districtQuestion(subjects, [pool[i]], r));
     }
     return out;
   }
@@ -454,12 +690,65 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   return {
     makeRng: makeRng,
     shuffle: shuffle,
+    weightFor: weightFor,
+    weightsFromStats: weightsFromStats,
     subjectQuestion: subjectQuestion,
     districtQuestion: districtQuestion,
     checkSubjectAnswer: checkSubjectAnswer,
     checkDistrictAnswer: checkDistrictAnswer,
+    bonusFor: bonusFor,
+    neighborQuestion: neighborQuestion,
     buildRound: buildRound
   };
+}));
+
+</script>
+<script>
+/* Синтез звуковых событий — шов для тестов. Без DOM, без файлов, без сети.
+ * soundFor(event) -> {freq, dur}: чисто, частоты в Гц, длительность в секундах.
+ * play(spec): тонкий WebAudio-осциллятор; вне браузера или без AudioContext — no-op.
+ */
+(function (root, factory) {
+  var api = factory();
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.GEO_SOUND = api;
+}(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  // Верно — высокое короткое; неверно — низкое; финиш — самое высокое и
+  // долгое; клик — нейтральное. Значения зафиксированы smoke-тестом.
+  function soundFor(event) {
+    if (event === 'correct') return { freq: 660, dur: 0.12 };
+    if (event === 'wrong') return { freq: 180, dur: 0.25 };
+    if (event === 'finish') return { freq: 880, dur: 0.4 };
+    return { freq: 440, dur: 0.07 };
+  }
+
+  var ctx = null;
+  function play(spec) {
+    if (!spec || typeof spec.freq !== 'number' || typeof spec.dur !== 'number') return false;
+    try {
+      var AC = (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) ||
+        (typeof self !== 'undefined' && (self.AudioContext || self.webkitAudioContext));
+      if (!AC) return false;
+      ctx = ctx || new AC();
+      if (ctx.state === 'suspended') ctx.resume();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = spec.freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + spec.dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + spec.dur + 0.02);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  return { soundFor: soundFor, play: play };
 }));
 
 </script>
@@ -472,6 +761,7 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   'use strict';
   var DATA = window.GEO_DATA;
   var QUIZ = window.GEO_QUIZ;
+  var SOUND = window.GEO_SOUND || null;
   var DISTRICTS = DATA.DISTRICTS;
   var SUBJECTS = DATA.SUBJECTS;
   var bySvg = {}, byDistrict = {};
@@ -489,12 +779,17 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   }
 
   var STORE_KEY = 'geo-trainer-v1';
-  var store = { ok: {}, asked: {}, errors: [] };
+  var store = { ok: {}, asked: {}, errors: [], history: [], sound: true };
   var storageOK = true;
   function loadStore() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (raw) store = JSON.parse(raw);
+      if (store.sound === undefined) store.sound = true;
+      if (!store.history) store.history = [];
+      if (!store.ok) store.ok = {};
+      if (!store.asked) store.asked = {};
+      if (!store.errors) store.errors = [];
     } catch (e) { storageOK = false; }
   }
   function saveStore() {
@@ -508,6 +803,45 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
     saveStore();
   }
   function pushError(err) { store.errors.push(err); saveStore(); }
+
+  // История игр (R01.3): последние 20 (дата, счёт, всего из 2×N).
+  function pushHistory(game) {
+    store.history.push(game);
+    if (store.history.length > 20) store.history = store.history.slice(-20);
+    saveStore();
+  }
+
+  // Озвучка событий (R02.1): синтез из sound.js, тумблер — store.sound.
+  function sfx(event) {
+    if (!SOUND || store.sound === false) return;
+    SOUND.play(SOUND.soundFor(event));
+  }
+
+  // Контрастная тема (R01.6): переключатель, выбор — в store.theme.
+  // Ключ создаётся только явным переключением, чтобы молчаливое состояние
+  // совпадало со старым хранилищем. Заливки ставит paint*, тема их не трогает.
+  function applyTheme() {
+    var t = store.theme || 'light';
+    var box = document.getElementById('theme');
+    if (box && typeof box.checked === 'boolean') box.checked = (t === 'contrast');
+    try {
+      if (document.body && document.body.classList) {
+        if (t === 'contrast') document.body.classList.add('contrast');
+        else document.body.classList.remove('contrast');
+      }
+    } catch (e) {
+      // Сбой применения темы не глотаем: откат на светлую по умолчанию,
+      // это же состояние — в хранилище и в чекбокс.
+      store.theme = 'light';
+      saveStore();
+      if (box && typeof box.checked === 'boolean') box.checked = false;
+    }
+  }
+  function setTheme(name) {
+    store.theme = (name === 'contrast') ? 'contrast' : 'light';
+    saveStore();
+    applyTheme();
+  }
 
   var svg = document.getElementById('map');
   var tip = document.getElementById('tip');
@@ -595,6 +929,7 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   // Экраны
   var screens = ['home', 'study', 'game', 'result'];
   function show(name) {
+    if (name !== 'game') stopTimer();
     screens.forEach(function (s) {
       document.getElementById('screen-' + s).hidden = (s !== name);
     });
@@ -603,6 +938,24 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
 
   // Легенда
   var legend = document.getElementById('legend');
+  var legendList = document.getElementById('legend-list');
+  function renderLegendList(districtId) {
+    legendList.innerHTML = '';
+    (byDistrict[districtId] || []).forEach(function (s) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'legend-subject';
+      b.dataset.svgId = s.svgId;
+      b.textContent = s.name;
+      b.addEventListener('click', function () {
+        if (!document.getElementById('screen-study').hidden && paths[s.svgId]) {
+          dimAllExcept([s.svgId]);
+          paths[s.svgId].classList.add('active-q');
+        }
+      });
+      legendList.appendChild(b);
+    });
+  }
   DISTRICTS.forEach(function (d, i) {
     var b = document.createElement('button');
     b.type = 'button';
@@ -618,6 +971,7 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
     b.addEventListener('click', function () {
       if (!document.getElementById('screen-study').hidden) {
         dimAllExcept(byDistrict[d.id].map(function (s) { return s.svgId; }));
+        renderLegendList(d.id);
       }
     });
     legend.appendChild(b);
@@ -635,10 +989,66 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
     dBtns.appendChild(b);
   });
 
+  // Печать состава (R01.4): районы и списки субъектов, без карты-игры.
+  // Заголовок — статикой в template; сюда — 12 разделов со списками.
+  (function buildPrint() {
+    var pl = document.getElementById('print-list');
+    pl.innerHTML = '';
+    DISTRICTS.forEach(function (d) {
+      var sec = document.createElement('div');
+      sec.className = 'print-district';
+      var h = document.createElement('h3');
+      h.textContent = d.name;
+      sec.appendChild(h);
+      var ul = document.createElement('ul');
+      (byDistrict[d.id] || []).forEach(function (s) {
+        var li = document.createElement('li');
+        li.textContent = s.name;
+        ul.appendChild(li);
+      });
+      sec.appendChild(ul);
+      pl.appendChild(sec);
+    });
+  })();
+  document.getElementById('btn-print').addEventListener('click', function () {
+    sfx('click');
+    if (typeof window !== 'undefined' && typeof window.print === 'function') window.print();
+  });
+
   var G = null; // состояние игры
+  var qTimer = document.getElementById('q-timer');
+  // Секундомер (R04.1): время вопроса и раунда; скрытая вкладка — пауза.
+  function visibleSeconds(t0, hiddenMs) {
+    var hide = hiddenMs + (G.hiddenSince ? Date.now() - G.hiddenSince : 0);
+    return (Date.now() - t0 - hide) / 1000;
+  }
+  function qSeconds() { return visibleSeconds(G.t0, G.hiddenMs); }
+  function roundSeconds() { return visibleSeconds(G.roundT0, G.roundHiddenMs); }
+  function tickTimer() {
+    if (!G) return;
+    qTimer.textContent = 'Время вопроса: ' + Math.max(0, qSeconds()).toFixed(0) +
+      ' с · Раунд: ' + Math.max(0, roundSeconds()).toFixed(0) + ' с';
+  }
+  function stopTimer() {
+    if (G && G.timerId) { clearInterval(G.timerId); G.timerId = 0; }
+  }
+  function onVis() {
+    if (!G) return;
+    if (document.hidden) { if (!G.hiddenSince) G.hiddenSince = Date.now(); }
+    else if (G.hiddenSince) {
+      var d = Date.now() - G.hiddenSince;
+      G.hiddenMs += d; G.roundHiddenMs += d; G.hiddenSince = 0;
+      tickTimer();
+    }
+  }
+  if (document.addEventListener) document.addEventListener('visibilitychange', onVis);
   function newGame(mode, questions, strict) {
+    stopTimer();
+    var now = Date.now();
     G = { mode: mode, questions: questions, i: 0, score: 0, attempts: 0,
-      picked: [], hinted: false, strict: !!strict, wrong: [] };
+      picked: [], hinted: false, strict: !!strict, wrong: [],
+      t0: now, roundT0: now, hiddenMs: 0, roundHiddenMs: 0, hiddenSince: 0, timerId: 0 };
+    G.timerId = setInterval(tickTimer, 500);
     show('game');
     renderQuestion();
   }
@@ -646,7 +1056,9 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
     var strict = document.getElementById('strict').checked;
     var n = mode === 'district-subjects' ? 6 : 10;
     var pool = mode === 'subject-district' ? SUBJECTS : DISTRICTS;
-    var qs = QUIZ.buildRound(mode, SUBJECTS, DISTRICTS, n, Math.random);
+    // R01.1: слабые районы спрашивают чаще — веса из статистики ответов.
+    var qs = QUIZ.buildRound(mode, SUBJECTS, DISTRICTS, n, Math.random,
+      QUIZ.weightsFromStats(store.asked, store.ok));
     if (!qs.length) return;
     newGame(mode, qs, strict);
   }
@@ -660,10 +1072,32 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
         var d = DISTRICTS.filter(function (x) { return x.id === e.district; })[0];
         if (d) qs.push({ kind: 'mixed-district', district: d,
           members: (byDistrict[d.id] || []).map(function (s) { return s.svgId; }) });
+      } else if (e.mode === 'neighbors' && bySvg[e.svgId] &&
+          DATA.NEIGHBORS[e.svgId] && DATA.NEIGHBORS[e.svgId].length) {
+        qs.push({ kind: 'neighbors', subject: bySvg[e.svgId],
+          neighbors: DATA.NEIGHBORS[e.svgId].slice() });
       }
     });
     if (!qs.length) return;
     newGame('errors', qs, strict);
+  }
+
+  // Режим «соседи» (R01.5): вопросы — только QUIZ.neighborQuestion,
+  // регионы без соседей отсекает само ядро. 6 вопросов, без повторов субъекта.
+  function startNeighbors() {
+    var strict = document.getElementById('strict').checked;
+    var qs = [], guard = 0;
+    while (qs.length < 6 && guard++ < 200) {
+      var q = QUIZ.neighborQuestion(SUBJECTS, DATA.NEIGHBORS, Math.random);
+      if (q && qs.every(function (x) { return x.subject.svgId !== q.subject.svgId; })) qs.push(q);
+    }
+    if (!qs.length) return;
+    newGame('neighbors', qs, strict);
+  }
+  // Цели вопроса для кликов по карте: район — members, соседи — neighbors.
+  function qMembers(q) { return q.kind === 'neighbors' ? q.neighbors : q.members; }
+  function qDistrictId(q) {
+    return q.kind === 'neighbors' ? q.subject.district : q.district.id;
   }
 
   var qTitle = document.getElementById('q-title');
@@ -679,15 +1113,24 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   function renderQuestion() {
     var q = curQ();
     G.attempts = 0; G.picked = []; G.hinted = false;
+    G.t0 = Date.now(); G.hiddenMs = 0; G.hiddenSince = document.hidden ? Date.now() : 0;
+    tickTimer();
     qMsg.textContent = '';
     paintNeutral();
     btnDone.hidden = true;
-    btnHint.hidden = G.strict || q.kind === 'district-subjects';
-    dBtns.style.display = (q.kind === 'district-subjects') ? 'none' : '';
+    btnHint.hidden = G.strict || q.kind !== 'subject-district';
+    dBtns.style.display = (q.kind === 'subject-district') ? '' : 'none';
     progress.textContent = 'Вопрос ' + (G.i + 1) + ' из ' + G.questions.length + ' · Счёт ' + G.score;
     if (q.kind === 'subject-district' || (G.mode === 'errors' && q.kind === 'subject-district')) {
       qTitle.textContent = 'Какой экономический район: ' + q.subject.name + '?';
       qHint.textContent = 'Подсказка: регион подсвечен на карте.';
+      dimAllExcept([q.subject.svgId]);
+      paths[q.subject.svgId].classList.add('active-q');
+    } else if (q.kind === 'neighbors') {
+      qTitle.textContent = 'Кто соседи: кликни регионы, граничащие с «' + q.subject.name +
+        '» (' + q.neighbors.length + ')';
+      qHint.textContent = 'Кликай соседей на карте, затем «Готово».';
+      btnDone.hidden = false;
       dimAllExcept([q.subject.svgId]);
       paths[q.subject.svgId].classList.add('active-q');
     } else {
@@ -706,10 +1149,13 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
     var r = QUIZ.checkSubjectAnswer(q, b.dataset.district);
     G.attempts++;
     if (r.ok) {
-      G.score += G.hinted ? 0 : (G.attempts === 1 ? 2 : 1);
+      var bonus = QUIZ.bonusFor({ attempt: G.attempts, seconds: qSeconds(), hinted: G.hinted });
+      G.score += (G.hinted ? 0 : (G.attempts === 1 ? 2 : 1)) + bonus;
       paths[q.subject.svgId].classList.add('good');
       recordResult(q.subject.district, true);
-      qMsg.textContent = 'Верно! ' + q.subject.name + ' — ' + districtName(q.subject.district) + '.';
+      sfx('correct');
+      qMsg.textContent = 'Верно! ' + q.subject.name + ' — ' + districtName(q.subject.district) + '.' +
+        (bonus ? ' Бонус за скорость +1!' : '');
       setTimeout(next, 900);
     } else if (G.attempts >= 3) {
       if (!G.strict) {
@@ -721,30 +1167,33 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
       paths[q.subject.svgId].classList.add('bad');
       recordResult(q.subject.district, false);
       pushError({ mode: 'subject-district', svgId: q.subject.svgId });
+      sfx('wrong');
       setTimeout(next, 1600);
     } else {
       b.classList.add('tried');
       setTimeout(function () { b.classList.remove('tried'); }, 600);
       qMsg.textContent = 'Мимо. Осталось попыток: ' + (3 - G.attempts) + '.';
       recordResult(q.subject.district, false);
+      sfx('wrong');
     }
   });
 
   function onPickSvg(id) {
     if (!G) return;
     var q = curQ();
-    if (q.kind !== 'district-subjects' && q.kind !== 'mixed-district') return;
+    if (q.kind !== 'district-subjects' && q.kind !== 'mixed-district' && q.kind !== 'neighbors') return;
     if (G.picked.indexOf(id) !== -1) return; // повтор не ошибка
     var r = QUIZ.checkDistrictAnswer(
-      { members: q.members }, G.picked.concat([id]));
+      { members: qMembers(q) }, G.picked.concat([id]));
     if (r.extra.length) {
       paths[id].classList.add('bad');
       setTimeout(function () { paths[id].classList.remove('bad'); }, 600);
       qMsg.textContent = bySvg[id].name + ' — не входит. Ищем дальше.';
+      sfx('wrong');
     } else {
       G.picked.push(id);
       paths[id].classList.add('good');
-      var left = q.members.length - G.picked.length;
+      var left = qMembers(q).length - G.picked.length;
       qMsg.textContent = left ? 'Осталось найти: ' + left + '.' : 'Всё найдено! Жми «Готово».';
     }
   }
@@ -766,19 +1215,23 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   btnDone.addEventListener('click', function () {
     if (!G) return;
     var q = curQ();
-    var r = QUIZ.checkDistrictAnswer({ members: q.members }, G.picked);
+    var members = qMembers(q);
+    var r = QUIZ.checkDistrictAnswer({ members: members }, G.picked);
     var ok = r.complete;
     if (ok) G.score += 2;
-    q.members.forEach(function (id) {
+    members.forEach(function (id) {
       if (paths[id]) paths[id].classList.add(r.missing.indexOf(id) === -1 ? 'good' : 'bad');
     });
-    recordResult(q.district.id, ok);
-    if (!ok) pushError({ mode: 'district-subjects', district: q.district.id });
+    recordResult(qDistrictId(q), ok);
+    if (!ok) pushError(q.kind === 'neighbors'
+      ? { mode: 'neighbors', svgId: q.subject.svgId }
+      : { mode: 'district-subjects', district: q.district.id });
+    sfx(ok ? 'correct' : 'wrong');
     qMsg.textContent = ok
       ? 'Верно! Все ' + r.total + ' найдены.'
       : 'Найдено ' + r.found + ' из ' + r.total + '. Пропущены: ' +
         r.missing.map(function (id) { return bySvg[id].name; }).join(', ') + '.';
-    if (!G.strict) dimAllExcept(q.members);
+    if (!G.strict) dimAllExcept(members);
     setTimeout(next, 2200);
   });
 
@@ -793,11 +1246,13 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   btnGiveup.addEventListener('click', function () {
     if (!G) return;
     var q = curQ();
-    var d = q.kind === 'subject-district' ? q.subject.district : q.district.id;
+    var d = q.kind === 'subject-district' ? q.subject.district : qDistrictId(q);
     recordResult(d, false);
     pushError(q.kind === 'subject-district'
       ? { mode: 'subject-district', svgId: q.subject.svgId }
-      : { mode: 'district-subjects', district: q.district.id });
+      : (q.kind === 'neighbors'
+        ? { mode: 'neighbors', svgId: q.subject.svgId }
+        : { mode: 'district-subjects', district: q.district.id }));
     next();
   });
   btnFinish.addEventListener('click', function () { finish(); });
@@ -810,8 +1265,21 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   }
   function finish() {
     var total = G.questions.length;
+    var secs = Math.max(0, roundSeconds());
+    stopTimer();
     var pct = total ? Math.round(100 * G.score / (2 * total)) : 0;
     document.getElementById('res-score').textContent = G.score + ' из ' + (2 * total) + ' (' + pct + '%)';
+    document.getElementById('res-time').textContent = 'Время раунда: ' + secs.toFixed(0) +
+      ' с · среднее на вопрос: ' + (total ? (secs / total).toFixed(0) : 0) + ' с';
+    pushHistory({ date: new Date().toISOString(), score: G.score, total: 2 * total });
+    var rh = document.getElementById('res-history');
+    rh.innerHTML = '';
+    store.history.slice(-5).reverse().forEach(function (g) {
+      var li = document.createElement('li');
+      var when = g.date ? g.date.slice(0, 10) : '';
+      li.textContent = (when ? when + ' — ' : '') + g.score + ' из ' + g.total;
+      rh.appendChild(li);
+    });
     var per = DISTRICTS.map(function (d) {
       var a = store.asked[d.id] || 0, o = store.ok[d.id] || 0;
       return { d: d, pct: a ? Math.round(100 * o / a) : null };
@@ -827,6 +1295,7 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
     document.getElementById('btn-retry-errors').hidden = !store.errors.length;
     G = null;
     paintStudy();
+    sfx('finish');
     show('result');
   }
 
@@ -835,12 +1304,15 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   });
   document.getElementById('btn-mode-sd').addEventListener('click', function () { startMode('subject-district'); });
   document.getElementById('btn-mode-ds').addEventListener('click', function () { startMode('district-subjects'); });
+  document.getElementById('btn-mode-nb').addEventListener('click', startNeighbors);
   document.getElementById('btn-errors').addEventListener('click', startErrors);
   document.getElementById('btn-retry-errors').addEventListener('click', function () {
     show('home'); startErrors();
   });
   document.getElementById('btn-reset').addEventListener('click', function () {
-    store = { ok: {}, asked: {}, errors: [] };
+    var sound = store.sound, th = store.theme;
+    store = { ok: {}, asked: {}, errors: [], history: [], sound: sound };
+    if (th) store.theme = th;
     saveStore();
     refreshHome();
   });
@@ -859,6 +1331,19 @@ label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 
   loadStore();
   paintStudy();
   refreshHome();
+  var soundBox = document.getElementById('sound');
+  soundBox.checked = store.sound !== false;
+  soundBox.addEventListener('change', function () {
+    store.sound = soundBox.checked;
+    saveStore();
+    if (soundBox.checked) sfx('click');
+  });
+  var themeBox = document.getElementById('theme');
+  themeBox.addEventListener('change', function () {
+    setTheme(themeBox.checked ? 'contrast' : 'light');
+    if (store.sound !== false) sfx('click');
+  });
+  applyTheme();
   show('home');
 })();
 

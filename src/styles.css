@@ -40,6 +40,15 @@ main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 40px; }
   display: inline-flex; align-items: center; gap: 6px;
 }
 .legend-item:hover, .district-btn:hover { border-color: #333; }
+#legend-list {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px;
+}
+#legend-list:empty { display: none; }
+.legend-subject {
+  border: 1px solid #bbb; background: #fff; border-radius: 6px;
+  padding: 4px 10px; font-size: 13px; cursor: pointer;
+}
+.legend-subject:hover { border-color: #333; }
 .district-btn.tried { border-color: #d1242f; background: #fde8e9; }
 .chip { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.3); }
 .num {
@@ -65,6 +74,26 @@ main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 40px; }
 .note { font-size: 13px; color: #555; }
 footer { font-size: 12px; color: #777; margin-top: 16px; }
 label.strict { display: inline-flex; gap: 6px; align-items: center; margin: 8px 0; }
+/* Контрастная тема для проектора (R01.6): тёмный фон, толстые контуры.
+ * Заливки контуров задаёт приложение инлайн (study — цвета районов,
+ * игра — нейтральный), тема их не перекрывает. */
+body.contrast { background: #111; color: #f2f2f2; }
+body.contrast header { background: #000; }
+body.contrast .panel { background: #1c1c1c; color: #f2f2f2; }
+body.contrast .note, body.contrast #q-progress, body.contrast #q-timer { color: #ddd; }
+body.contrast #map path { stroke: #000; stroke-width: 2; }
+body.contrast #map path.good { stroke: #2ea043; stroke-width: 3.5; }
+body.contrast #map path.bad { stroke: #ff7b72; stroke-width: 3.5; }
+body.contrast #map path.active-q { stroke: #fff; stroke-width: 3; }
+body.contrast .legend-item, body.contrast .district-btn, body.contrast .legend-subject { background: #222; color: #fff; border-color: #888; }
+#print-list { display: none; }
+/* Печать состава (R01.4): только районы и списки субъектов, карта-игры нет. */
+@media print {
+  .map-wrap, #legend, #legend-list, #tip, #screen-home, #screen-study,
+  #screen-game, #screen-result, footer { display: none !important; }
+  #print-list { display: block !important; }
+  body { background: #fff; color: #000; }
+}
 @media (max-width: 640px) {
   #res-districts { columns: 1; }
   header h1 { font-size: 17px; }
