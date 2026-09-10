@@ -31,6 +31,16 @@
     return arr[Math.floor((rng || Math.random)() * arr.length)];
   }
 
+  // Вес района из % верных (R01.1): 1 − pct/100, пол 0.1,
+  // чтобы район со 100% всё равно иногда выпадал. pct: 0..100.
+  function weightFor(pct) {
+    if (typeof pct !== 'number' || isNaN(pct)) return 1;
+    if (pct <= 0) return 1;
+    if (pct >= 100) return 0.1;
+    var w = 1 - pct / 100;
+    return w < 0.1 ? 0.1 : w;
+  }
+
   // Вопрос «субъект → район»: какой район у этого субъекта.
   // Варианты не фиксируем — приложение показывает все 12 районов.
   function subjectQuestion(subjects, rng) {
@@ -66,14 +76,75 @@
       complete: missing.length === 0 && extra.length === 0 };
   }
 
+  // Бонус за скорость (R04.1): +1 только за верный с 1-й попытки
+  // быстрее 8 с без подсказки, иначе 0.
+  function bonusFor(a) {
+    a = a || {};
+    if (a.attempt !== 1) return 0;
+    if (a.hinted) return 0;
+    if (typeof a.seconds !== 'number' || isNaN(a.seconds)) return 0;
+    return a.seconds < 8 ? 1 : 0;
+  }
+
+  // Вопрос «соседи» (R01.5): субъект с ≥1 соседом + множество соседей.
+  // neighbors — матрица таска 01 {svgId: [svgId...]}; регионы без соседей
+  // (нет ключа или пустой список) в вопрос не попадают.
+  function neighborQuestion(subjects, neighbors, rng) {
+    var eligible = subjects.filter(function (s) {
+      return neighbors && neighbors[s.svgId] && neighbors[s.svgId].length > 0;
+    });
+    if (eligible.length === 0) return null;
+    var subject = pick(eligible, rng);
+    return { kind: 'neighbors', subject: subject, neighbors: neighbors[subject.svgId].slice() };
+  }
+
+  // Взвешенная выборка без повторов: вероятность взять элемент
+  // пропорциональна его весу. Детерминирована при том же rng.
+  function weightedSample(items, weightOf, rng) {
+    var rest = items.slice(), out = [], total, x, acc, k, idx;
+    while (rest.length > 0) {
+      total = 0;
+      for (k = 0; k < rest.length; k++) total += weightOf(rest[k]);
+      x = rng() * total;
+      acc = 0; idx = rest.length - 1;
+      for (k = 0; k < rest.length; k++) {
+        acc += weightOf(rest[k]);
+        if (x < acc) { idx = k; break; }
+      }
+      out.push(rest[idx]);
+      rest.splice(idx, 1);
+    }
+    return out;
+  }
+
+  function weightOfKey(weights, key) {
+    var w = weights ? weights[key] : undefined;
+    return (typeof w === 'number' && !isNaN(w) && w > 0) ? w : 1;
+  }
+
   // Набор вопросов на игру: n случайных, без повторов субъекта/района.
-  function buildRound(mode, subjects, districts, n, rng) {
-    var pool = shuffle(mode === 'subject-district' ? subjects : districts, rng);
+  // weights (опционально): {districtId: weight} — слабые районы выпадают чаще.
+  // В режиме subject-district вес субъекта = вес его района.
+  function buildRound(mode, subjects, districts, n, rng, weights) {
+    var r = rng || Math.random, pool;
+    if (weights && typeof weights === 'object') {
+      if (mode === 'subject-district') {
+        pool = weightedSample(subjects, function (s) {
+          return weightOfKey(weights, s.district);
+        }, r);
+      } else {
+        pool = weightedSample(districts, function (d) {
+          return weightOfKey(weights, d.id);
+        }, r);
+      }
+    } else {
+      pool = shuffle(mode === 'subject-district' ? subjects : districts, r);
+    }
     var out = [], i;
     for (i = 0; i < Math.min(n, pool.length); i++) {
       out.push(mode === 'subject-district'
-        ? subjectQuestion([pool[i]], rng)
-        : districtQuestion(subjects, [pool[i]], rng));
+        ? subjectQuestion([pool[i]], r)
+        : districtQuestion(subjects, [pool[i]], r));
     }
     return out;
   }
@@ -81,10 +152,13 @@
   return {
     makeRng: makeRng,
     shuffle: shuffle,
+    weightFor: weightFor,
     subjectQuestion: subjectQuestion,
     districtQuestion: districtQuestion,
     checkSubjectAnswer: checkSubjectAnswer,
     checkDistrictAnswer: checkDistrictAnswer,
+    bonusFor: bonusFor,
+    neighborQuestion: neighborQuestion,
     buildRound: buildRound
   };
 }));
