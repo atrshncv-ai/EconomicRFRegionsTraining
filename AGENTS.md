@@ -30,6 +30,9 @@
 - `src/template.html` + `/*__SOUND__*/`, ids `q-timer`/`legend-list`/`sound`/`theme`/`btn-print`/`print-list`/`btn-mode-nb`/`res-history`/`res-time`
 - `tools/build_neighbors.py` — генератор соседства (геометрия `EPS=0.5` + `MANUAL` + анклавы), только stdlib
 - `tests/*` расширены: `data` — симметрия/известные id/без петель; `quiz` — веса/бонус/соседи; `smoke` — звук/таймер/история/пауза/легенда/тема/печать/соседи
+- `src/data.js` + `FO_GROUPS` (8: `id/имя/abbr/центр/centerNote/цвет`, своя палитра)/`FO_OF` (`svgId→foId`, 89, `cfo18/szfo11/yufo12/skfo7/pfo14/urfo6/sfo10/dvfo11`, новые 4 → `yufo`)
+- `src/app.js` + `window.GEO_APP.setDataset/getDataset`, `src/template.html` ids `ds-eco/ds-fo`; неймспейсы `ok/asked={eco,fo}`, `errors/history` с `ds`; легенда `центр+счёт+разбивка`, печать обоих составов (активный первым, 20 разделов)
+- `.autopilot/federal-districts/interfaces.md` — границы ФО-набора (швы `setDataset`, валидация, `subjFromTitle`)
 - `.autopilot/geo-trainer/interfaces.md` — накопленные границы и правила сборки
 - Актуальные границы — `.autopilot/extras/interfaces.md` (швы `weightFor`/`neighborQuestion`/`bonusFor`/`soundFor`)
 
@@ -60,6 +63,11 @@
 - `#btn-print` → `window.print()`, `@media print` прячет карту-игру, `print-list` строится в JS (12 разделов).
 - `btn-reset` чистит `ok`/`asked`/`errors`/`history`, но сохраняет `sound`/`theme`.
 - Раунд соседи — 6 без повторов (`guard 200`); `startErrors` по-прежнему последние 30.
+- `FO_OF` 89 ровно по одному зафиксирован `tests/data.test.js` (счётчики выше, `DNR/LNR/ZAP/KHE→yufo`); палитра ФО 8 вне 12 экон. цветов, `centerNote` только у `dvfo` (`2018`); `RU-VOR` и в ФО осознанно `cfo`.
+- `setDataset` невалидное — no-op (возврат текущего); валидное перестраивает легенду/кнопки/печать/изучение + `paintStudy`/`refreshHome`, `dataset` persists в `store.dataset`.
+- Миграция `ensureNs`: плоские `ok/asked` → `eco`, `errors/history` без `ds` → `eco`; кап `history` 20 на набор (`other+mine`), `startErrors`/веса/кнопка ошибок — фильтром своего `ds`; `btn-reset` чистит оба неймспейса + `errors/history`, хранит `sound/theme/dataset`.
+- Легенда ФО `Имя (ABBR) — центр: X [(note)] — N: разбивка`; `typeOf` из названий (`область/край/республик/округ`, иначе `city`) + `plural`; `activeSubjects` подменяет `district=FO_OF`, ядро `quiz.js` generic не трогать.
+- Печать 20 разделов (`12+8`), активный первым; заголовок ФО как легенда (центр+счёт+разбивка+`2018`); `subjFromTitle` в `tests/smoke.test.js` только точное `==` (`«»`/после `:`), `includes` запрещён (`NEN⊂YAN` ~10% флаков).
 
 ## Как здесь работает Autopilot
 
