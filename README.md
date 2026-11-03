@@ -71,3 +71,8 @@ node --test tests/data.test.js tests/quiz.test.js tests/smoke.test.js
 - `tests/` — проверки данных, викторины и smoke-проверки.
 
 Условия использования карты указаны в `vendor/LICENSE-map.txt`. Корневой файл `LICENSE`, задающий условия для исходного кода проекта в целом, пока отсутствует.
+
+## License / Лицензия
+
+Released under the MIT License. See [LICENSE](LICENSE).
+Проект распространяется по лицензии MIT. См. [LICENSE](LICENSE).
